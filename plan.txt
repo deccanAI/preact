@@ -1,0 +1,30 @@
+Plan to refactor Preact's hook argument comparison mechanism:
+
+1. Problem:
+   - Current implementation uses strict equality (!==) to compare hook dependencies
+   - This may not handle all edge cases correctly (e.g., NaN comparison)
+   - Need to match React's behavior by using Object.is
+
+2. Files to modify:
+   - /preact/hooks/src/index.js
+   - Function to update: argsChanged()
+
+3. Changes needed:
+   - Replace the current comparison `arg !== oldArgs[index]` with `!Object.is(arg, oldArgs[index])`
+   - This will ensure consistent behavior with React, especially for edge cases like:
+     * NaN comparison (NaN === NaN is false, but Object.is(NaN, NaN) is true)
+     * -0 vs +0 comparison (-0 === +0 is true, but Object.is(-0, +0) is false)
+
+4. Testing:
+   - No test modifications needed as per PR description
+   - Existing tests should pass with the new implementation
+   - Edge cases like NaN and -0/+0 will be handled correctly
+
+5. Documentation:
+   - No documentation updates needed as this is an internal implementation detail
+   - The change maintains the same external API behavior, just improves precision
+
+6. Benefits:
+   - More precise dependency comparison
+   - Better consistency with React's behavior
+   - Proper handling of special JavaScript number cases
