@@ -1,0 +1,29 @@
+# Plan for Refactoring Preact's Hook Argument Comparison Mechanism
+
+## Problem Statement
+Currently, Preact's hook system uses a simple equality check (`!==`) to determine if hook dependencies have changed. This approach may not correctly handle all edge cases, particularly with special values like NaN. React uses Object.is() for this comparison, which provides more precise equality semantics.
+
+## Implementation Plan
+
+1. Identify the function responsible for comparing hook arguments
+   - The `argsChanged()` function in hooks/src/index.js is the target
+
+2. Replace the current implementation with Object.is()
+   - Current: Simple array iteration with `!==` comparison
+   - New: Use Object.is() for each element comparison
+
+3. Test the changes
+   - Ensure all existing tests pass
+   - Pay special attention to tests that might be affected by the change in equality semantics
+
+4. Document the change
+   - Update any relevant documentation to reflect the new behavior
+
+## Expected Benefits
+- More consistent behavior with React's implementation
+- Proper handling of edge cases like NaN comparisons
+- Better predictability for developers using hooks
+
+## Potential Risks
+- Subtle changes in equality semantics might affect existing code
+- Performance implications (though likely minimal)
