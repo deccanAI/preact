@@ -1,0 +1,35 @@
+Plan for Refactoring Preact's Hook Argument Comparison
+
+1. Analysis Phase
+   - Locate the current hook comparison logic in Preact's codebase
+   - Identify all places where hook dependency comparisons are made
+   - Review current tests that cover hook dependency comparison
+
+2. Implementation Phase
+   - Replace current equality check with Object.is()
+   - Key areas to modify:
+     * useEffect/useLayoutEffect dependency array comparison
+     * useMemo/useCallback dependency array comparison
+     * Any other hooks that rely on dependency comparison
+
+3. Testing Phase
+   - Run existing test suite to verify no regressions
+   - Add new test cases specifically for Object.is edge cases:
+     * NaN comparison
+     * -0 vs +0 comparison
+     * Object reference comparison
+
+4. Documentation Update
+   - Update relevant documentation to mention Object.is usage
+   - Document any behavior changes that users should be aware of
+
+5. Verification Steps
+   - Run full test suite
+   - Manual testing with example components
+   - Verify behavior matches React's implementation
+
+Success Criteria:
+- All existing tests pass
+- New tests for Object.is specific cases pass
+- Documentation is updated and accurate
+- Behavior matches React's implementation for hook dependency comparison
