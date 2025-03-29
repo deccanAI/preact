@@ -39,6 +39,23 @@ export function createElement(type, props, children) {
 		}
 	}
 
+	// Forward refs by default for function components
+	if (
+		typeof type == 'function' &&
+		!('prototype' in type && type.prototype.render)
+	) {
+		const originalType = type;
+		type = function (props) {
+			const result = originalType(props);
+			if (result && typeof result == 'object' && ref) {
+				result.ref = ref;
+				ref = NULL;
+			}
+			return result;
+		};
+		type.displayName = originalType.displayName || originalType.name;
+	}
+
 	return createVNode(type, normalizedProps, key, ref, NULL);
 }
 

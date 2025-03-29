@@ -1,0 +1,49 @@
+Plan to implement ref forwarding by default in Preact
+
+1. Current Behavior:
+- Refs are currently handled in the createElement function in create-element.js
+- Refs are extracted from props and passed to createVNode
+- No automatic ref forwarding is implemented
+
+2. Required Changes:
+a) Modify createElement function to:
+   - Handle ref forwarding for function components
+   - Preserve existing ref behavior for class components
+   - Maintain backward compatibility
+
+b) Update createVNode to:
+   - Support forwarded refs
+   - Handle both direct refs and forwarded refs
+
+3. Implementation Steps:
+1. Modify createElement function to:
+   - Check if component is a function component
+   - For function components, wrap the ref in a forwardRef-like behavior
+   - Preserve original ref behavior for class components
+
+2. Update the diff/index.js logic to:
+   - Handle forwarded refs correctly during component updates
+   - Ensure refs are properly cleaned up
+
+3. Ensure backward compatibility:
+   - Maintain existing behavior for class components
+   - Keep direct ref assignments working
+   - Handle edge cases like null/undefined refs
+
+4. Edge Cases to Handle:
+- Multiple refs (both forwarded and direct)
+- Null/undefined components
+- HOC components
+- Fragments
+- String refs (deprecated but supported)
+
+5. Testing:
+- Verify ref forwarding works for function components
+- Ensure class components maintain current behavior
+- Test edge cases and ref cleanup
+- Verify compatibility with existing code
+
+6. Documentation:
+- Update docs to reflect new default behavior
+- Add examples of ref forwarding
+- Document any edge cases or limitations

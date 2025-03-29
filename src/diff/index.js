@@ -621,7 +621,14 @@ export function applyRef(ref, value, vnode) {
 				// transitioning vnode
 				ref._unmount = ref(value);
 			}
-		} else ref.current = value;
+		} else if (ref && typeof ref === 'object') {
+			// Handle forwarded refs
+			if (ref.ref) {
+				applyRef(ref.ref, value, vnode);
+			} else {
+				ref.current = value;
+			}
+		}
 	} catch (e) {
 		options._catchError(e, vnode);
 	}
