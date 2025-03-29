@@ -1,0 +1,36 @@
+# Plan for Implementing Default Ref Forwarding in Preact
+
+## Overview
+The goal is to modify Preact to forward refs by default, similar to React's behavior, while maintaining backward compatibility.
+
+## Implementation Steps
+
+1. Modify the component creation process to automatically forward refs:
+   - Update the `createElement` function in `src/create-element.js` to handle ref forwarding
+   - Ensure refs are properly passed to the underlying DOM elements or components
+
+2. Update the `forwardRef` implementation in `compat/src/forwardRef.js`:
+   - Make it more of a compatibility layer since the core will now handle ref forwarding
+   - Ensure it still works correctly for explicit ref forwarding use cases
+
+3. Update the `memo` implementation in `compat/src/memo.js`:
+   - Ensure it works correctly with the new ref forwarding behavior
+
+4. Update tests to verify the new behavior:
+   - Add tests for automatic ref forwarding
+   - Ensure existing tests still pass
+
+5. Maintain backward compatibility:
+   - Ensure existing code that doesn't expect refs to be forwarded continues to work
+   - Handle edge cases where automatic ref forwarding might cause issues
+
+## Expected Benefits
+- Simplified component development with automatic ref forwarding
+- Better compatibility with React's behavior
+- Reduced need for explicit `forwardRef` usage in many cases
+- Easier integration with libraries that expect refs to be forwarded
+
+## Potential Challenges
+- Ensuring backward compatibility with existing code
+- Handling edge cases where automatic ref forwarding might cause unexpected behavior
+- Maintaining performance while adding this feature

@@ -39,6 +39,12 @@ export function createElement(type, props, children) {
 		}
 	}
 
+	// Auto-forward refs for components (not DOM elements)
+	if (typeof type == 'function' && ref && !type._forwarded) {
+		normalizedProps.ref = ref;
+		ref = NULL;
+	}
+
 	return createVNode(type, normalizedProps, key, ref, NULL);
 }
 
