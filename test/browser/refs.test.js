@@ -305,6 +305,15 @@ describe('refs', () => {
 		expect(ref.current.nodeName).to.equal('DIV');
 	});
 
+	it('should automatically forward refs to function components', () => {
+		const Foo = () => <div>foo</div>;
+		const ref = createRef();
+		
+		render(<Foo ref={ref} />, scratch);
+		expect(ref.current).to.not.be.null;
+		expect(ref.current.nodeName).to.equal('DIV');
+	});
+
 	// Test for #232
 	it('should only null refs after unmount', () => {
 		let outer, inner;
