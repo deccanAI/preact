@@ -31,10 +31,21 @@ export function createElement(type, props, children) {
 
 	// If a Component VNode, check for and apply defaultProps
 	// Note: type may be undefined in development, must never error here.
-	if (typeof type == 'function' && type.defaultProps != NULL) {
-		for (i in type.defaultProps) {
-			if (normalizedProps[i] == UNDEFINED) {
-				normalizedProps[i] = type.defaultProps[i];
+	if (typeof type == 'function') {
+		// Handle automatic ref forwarding for function components
+		if (
+			(ref && !type.prototype) ||
+			(type.prototype && !type.prototype.render)
+		) {
+			normalizedProps.ref = ref;
+			ref = NULL;
+		}
+
+		if (type.defaultProps != NULL) {
+			for (i in type.defaultProps) {
+				if (normalizedProps[i] == UNDEFINED) {
+					normalizedProps[i] = type.defaultProps[i];
+				}
 			}
 		}
 	}

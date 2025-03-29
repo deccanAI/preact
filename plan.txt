@@ -1,0 +1,30 @@
+Plan for Implementing Default Ref Forwarding in Preact
+
+1. Code Changes:
+   - Modify the core component creation logic in Preact to automatically forward refs
+   - Update the createElement/h function to handle ref forwarding
+   - Ensure VNode type properly includes ref property
+   - Add ref forwarding to functional components by default
+
+2. Implementation Strategy:
+   - Locate the component creation logic in the codebase
+   - Add ref forwarding logic to both class and functional components
+   - Maintain backward compatibility by preserving existing ref behavior
+   - Add type definitions for improved TypeScript support
+
+3. Documentation Updates:
+   - Update component documentation to reflect new default behavior
+   - Add examples showing ref forwarding usage
+   - Document any edge cases or limitations
+
+4. Testing:
+   - Add tests for default ref forwarding
+   - Verify backward compatibility
+   - Test with both class and functional components
+   - Ensure integration with existing Preact ecosystem
+
+Success Criteria:
+- Refs are automatically forwarded through components
+- Existing code continues to work without modifications
+- TypeScript types are accurate and complete
+- Documentation clearly explains the new behavior
