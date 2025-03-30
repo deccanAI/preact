@@ -9,6 +9,7 @@ import {
 	UNDEFINED,
 	XHTML_NAMESPACE
 } from '../constants';
+import { validateHydration, getHydrationMismatch } from '../hydration';
 import { BaseComponent, getDomSibling } from '../component';
 import { Fragment } from '../create-element';
 import { diffChildren } from './children';
@@ -456,12 +457,17 @@ function diffElementNodes(
 			newProps.is && newProps
 		);
 
-		// we are creating a new node, so we can assume this is a new subtree (in
-		// case we are hydrating), this deopts the hydrate
+		// Check for hydration mismatches
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
-			isHydrating = false;
+			const mismatch = getHydrationMismatch(newVNode, dom);
+			if (mismatch) {
+				if (options._hydrationMismatch) {
+					options._hydrationMismatch(newVNode, excessDomChildren, mismatch);
+				}
+				isHydrating = false;
+			} else if (!validateHydration(newVNode, dom)) {
+				isHydrating = false;
+			}
 		}
 		// we created a new parent, so none of the previously attached children can be reused:
 		excessDomChildren = NULL;

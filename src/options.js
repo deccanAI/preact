@@ -10,7 +10,19 @@ import { _catchError } from './diff/catch-error';
  * @type {import('./internal').Options}
  */
 const options = {
-	_catchError
+	_catchError,
+	_hydrationMismatch: (vnode, excessDomChildren, mismatch) => {
+		if (process.env.NODE_ENV !== 'production') {
+			console.warn(
+				'Hydration mismatch:',
+				mismatch,
+				'\nComponent:',
+				vnode.type,
+				'\nProps:',
+				vnode.props
+			);
+		}
+	}
 };
 
 export default options;

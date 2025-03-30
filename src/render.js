@@ -3,6 +3,7 @@ import { commitRoot, diff } from './diff/index';
 import { createElement, Fragment } from './create-element';
 import options from './options';
 import { slice } from './util';
+import { createHydrationCache, cleanupHydrationCache } from './hydration';
 
 /**
  * Render a Preact virtual node into a DOM element
@@ -74,5 +75,14 @@ export function render(vnode, parentDom, replaceNode) {
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
 export function hydrate(vnode, parentDom) {
-	render(vnode, parentDom, hydrate);
+	if (!parentDom._hydrateCache) {
+		parentDom._hydrateCache = true;
+		createHydrationCache(parentDom);
+	}
+
+	const result = render(vnode, parentDom, hydrate);
+
+	// Cleanup hydration cache after successful hydration
+	cleanupHydrationCache(parentDom);
+	return result;
 }
