@@ -10,7 +10,16 @@ import { _catchError } from './diff/catch-error';
  * @type {import('./internal').Options}
  */
 const options = {
-	_catchError
+	_catchError,
+	
+	// Hydration-specific hooks
+	_hydrationMismatch: null,
+	_hydrationResume: null,
+	_fragmentHydration: null,
+	_afterChildrenHydration: null,
+	_hydrationSuspended: null,
+	_hydrationComplete: null,
+	_hydrationError: null
 };
 
 export default options;
