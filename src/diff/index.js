@@ -9,6 +9,7 @@ import {
 	UNDEFINED,
 	XHTML_NAMESPACE
 } from '../constants';
+import { HYDRATION_CACHE } from '../hydration';
 import { BaseComponent, getDomSibling } from '../component';
 import { Fragment } from '../create-element';
 import { diffChildren } from './children';
@@ -292,25 +293,41 @@ export function diff(
 			}
 		} catch (e) {
 			newVNode._original = NULL;
-			// if hydrating or creating initial tree, bailout preserves DOM:
+			// if hydrating or creating initial tree, attempt recovery
 			if (isHydrating || excessDomChildren != NULL) {
 				if (e.then) {
 					newVNode._flags |= isHydrating
 						? MODE_HYDRATE | MODE_SUSPENDED
 						: MODE_SUSPENDED;
 
-					while (oldDom && oldDom.nodeType == 8 && oldDom.nextSibling) {
-						oldDom = oldDom.nextSibling;
-					}
-
-					excessDomChildren[excessDomChildren.indexOf(oldDom)] = NULL;
+					// For async components, preserve the DOM node for potential reuse
 					newVNode._dom = oldDom;
 				} else {
-					for (let i = excessDomChildren.length; i--; ) {
-						removeNode(excessDomChildren[i]);
+					// For sync errors during hydration, attempt to recover
+					const parentDom = oldDom && oldDom.parentNode;
+					if (parentDom) {
+						const tracker = HYDRATION_CACHE.get(parentDom);
+						if (tracker) {
+							const cachedNode = tracker.cache.get(newVNode);
+							if (cachedNode) {
+								newVNode._dom = cachedNode;
+								tracker.recovered++;
+								return;
+							}
+						}
+					}
+
+					// If recovery fails, clean up and fall back to fresh render
+					if (excessDomChildren) {
+						for (let i = excessDomChildren.length; i--; ) {
+							if (excessDomChildren[i]) {
+								removeNode(excessDomChildren[i]);
+							}
+						}
 					}
 				}
 			} else {
+				// For non-hydration errors, preserve the existing tree
 				newVNode._dom = oldVNode._dom;
 				newVNode._children = oldVNode._children;
 			}

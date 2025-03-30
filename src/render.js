@@ -1,8 +1,9 @@
-import { EMPTY_OBJ, NULL } from './constants';
+import { EMPTY_OBJ, NULL, MODE_HYDRATE } from './constants';
 import { commitRoot, diff } from './diff/index';
 import { createElement, Fragment } from './create-element';
 import options from './options';
 import { slice } from './util';
+import { hydrateNode } from './hydration';
 
 /**
  * Render a Preact virtual node into a DOM element
@@ -74,5 +75,27 @@ export function render(vnode, parentDom, replaceNode) {
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
 export function hydrate(vnode, parentDom) {
-	render(vnode, parentDom, hydrate);
+	if (parentDom == document) {
+		parentDom = document.documentElement;
+	}
+
+	if (options._root) options._root(vnode, parentDom);
+
+	vnode = parentDom._children = createElement(Fragment, NULL, [vnode]);
+	vnode._flags |= MODE_HYDRATE;
+
+	const dom = parentDom.firstChild;
+	const hydratedDom = hydrateNode(dom, vnode, parentDom, EMPTY_OBJ);
+
+	if (!hydratedDom) {
+		// Fallback to regular render if hydration fails
+		render(vnode, parentDom);
+		return;
+	}
+
+	const commitQueue = [];
+	const refQueue = [];
+
+	// Commit any pending effects
+	commitRoot(commitQueue, vnode, refQueue);
 }
