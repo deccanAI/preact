@@ -71,6 +71,12 @@ export function diff(
 		isHydrating = !!(oldVNode._flags & MODE_HYDRATE);
 		oldDom = newVNode._dom = oldVNode._dom;
 		excessDomChildren = [oldDom];
+		
+		// When resuming a suspended hydration, we need to ensure
+		// we properly handle any potential mismatches
+		if (isHydrating && options._hydrationResume) {
+			options._hydrationResume(newVNode, oldVNode);
+		}
 	}
 
 	if ((tmp = options._diff)) tmp(newVNode);
@@ -81,6 +87,9 @@ export function diff(
 			let newProps = newVNode.props;
 			const isClassComponent =
 				'prototype' in newType && newType.prototype.render;
+				
+			// During hydration, we need to be careful with components
+			// that might behave differently on the client vs server
 
 			// Necessary for createContext api. Setting this property will pass
 			// the context value as `this.context` just for this component.
@@ -262,6 +271,12 @@ export function diff(
 
 			if (isTopLevelFragment) {
 				renderResult = cloneNode(tmp.props.children);
+				
+				// During hydration, fragments need special handling to ensure
+				// we properly match the server-rendered DOM structure
+				if (isHydrating && options._fragmentHydration) {
+					options._fragmentHydration(renderResult, newVNode);
+				}
 			}
 
 			oldDom = diffChildren(
@@ -277,6 +292,12 @@ export function diff(
 				isHydrating,
 				refQueue
 			);
+			
+			// After diffing children during hydration, check if we need
+			// to handle any hydration-specific cleanup or validation
+			if (isHydrating && options._afterChildrenHydration) {
+				options._afterChildrenHydration(newVNode, oldVNode);
+			}
 
 			c.base = newVNode._dom;
 
@@ -295,22 +316,45 @@ export function diff(
 			// if hydrating or creating initial tree, bailout preserves DOM:
 			if (isHydrating || excessDomChildren != NULL) {
 				if (e.then) {
+					// Handle suspense during hydration
 					newVNode._flags |= isHydrating
 						? MODE_HYDRATE | MODE_SUSPENDED
 						: MODE_SUSPENDED;
 
+					// Skip comment nodes when finding the next sibling
 					while (oldDom && oldDom.nodeType == 8 && oldDom.nextSibling) {
 						oldDom = oldDom.nextSibling;
 					}
 
-					excessDomChildren[excessDomChildren.indexOf(oldDom)] = NULL;
+					// Mark this node as processed in excessDomChildren
+					if (excessDomChildren && oldDom) {
+						const index = excessDomChildren.indexOf(oldDom);
+						if (index !== -1) {
+							excessDomChildren[index] = NULL;
+						}
+					}
+					
 					newVNode._dom = oldDom;
+					
+					// Notify about suspended hydration
+					if (isHydrating && options._hydrationSuspended) {
+						options._hydrationSuspended(newVNode, e);
+					}
 				} else {
-					for (let i = excessDomChildren.length; i--; ) {
-						removeNode(excessDomChildren[i]);
+					// Handle non-suspense errors during hydration
+					if (isHydrating && options._hydrationError) {
+						options._hydrationError(e, newVNode, oldVNode);
+					}
+					
+					// Clean up excess DOM nodes
+					for (let i = excessDomChildren ? excessDomChildren.length : 0; i--; ) {
+						if (excessDomChildren[i]) {
+							removeNode(excessDomChildren[i]);
+						}
 					}
 				}
 			} else {
+				// Non-hydration error handling - preserve the previous DOM state
 				newVNode._dom = oldVNode._dom;
 				newVNode._children = oldVNode._children;
 			}
@@ -337,6 +381,12 @@ export function diff(
 	}
 
 	if ((tmp = options.diffed)) tmp(newVNode);
+
+	// If we're in hydration mode and everything went well,
+	// mark this node as successfully hydrated
+	if (isHydrating && !(newVNode._flags & MODE_SUSPENDED) && options._hydrationComplete) {
+		options._hydrationComplete(newVNode);
+	}
 
 	return newVNode._flags & MODE_SUSPENDED ? undefined : oldDom;
 }
@@ -459,9 +509,16 @@ function diffElementNodes(
 		// we are creating a new node, so we can assume this is a new subtree (in
 		// case we are hydrating), this deopts the hydrate
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
-			isHydrating = false;
+			if (options._hydrationMismatch) {
+				// Provide more context about the mismatch for better debugging
+				options._hydrationMismatch(newVNode, excessDomChildren, 'node-creation');
+			}
+			
+			// Instead of completely deopting hydration, try to continue with partial hydration
+			// Only set isHydrating to false if we're creating a new element that wasn't expected
+			if (excessDomChildren == NULL || excessDomChildren.length === 0) {
+				isHydrating = false;
+			}
 		}
 		// we created a new parent, so none of the previously attached children can be reused:
 		excessDomChildren = NULL;
@@ -470,7 +527,11 @@ function diffElementNodes(
 	if (nodeType === NULL) {
 		// During hydration, we still have to split merged text from SSR'd HTML.
 		if (oldProps !== newProps && (!isHydrating || dom.data !== newProps)) {
-			dom.data = newProps;
+			// For text nodes, we need to be careful about setting data during hydration
+			// Only update if there's an actual difference to avoid unnecessary DOM mutations
+			if (!isHydrating || (dom.data !== newProps && newProps != null)) {
+				dom.data = newProps;
+			}
 		}
 	} else {
 		// If excessDomChildren was not null, repopulate it with the current element's children:
@@ -481,11 +542,22 @@ function diffElementNodes(
 		// If we are in a situation where we are not hydrating but are using
 		// existing DOM (e.g. replaceNode) we should read the existing DOM
 		// attributes to diff them
-		if (!isHydrating && excessDomChildren != NULL) {
-			oldProps = {};
+		if (excessDomChildren != NULL) {
+			// Read existing DOM attributes regardless of hydration state
+			// This helps with both hydration and non-hydration cases
+			let readProps = {};
 			for (i = 0; i < dom.attributes.length; i++) {
 				value = dom.attributes[i];
-				oldProps[value.name] = value.value;
+				readProps[value.name] = value.value;
+			}
+			
+			// During hydration, we want to preserve server-rendered attributes
+			// unless they're explicitly different in the client render
+			if (isHydrating) {
+				// Merge read attributes with oldProps for hydration
+				oldProps = assign({}, oldProps, readProps);
+			} else {
+				oldProps = readProps;
 			}
 		}
 
@@ -505,8 +577,8 @@ function diffElementNodes(
 			}
 		}
 
-		// During hydration, props are not diffed at all (including dangerouslySetInnerHTML)
-		// @TODO we should warn in debug mode when props don't match here.
+		// During hydration, we need to be more careful with props diffing
+		// to ensure consistency between server and client rendering
 		for (i in newProps) {
 			value = newProps[i];
 			if (i == 'children') {
@@ -518,10 +590,24 @@ function diffElementNodes(
 			} else if (i == 'checked') {
 				checked = value;
 			} else if (
-				(!isHydrating || typeof value == 'function') &&
-				oldProps[i] !== value
+				// During hydration, we should:
+				// 1. Always update event handlers (functions)
+				// 2. Update props that differ from server-rendered version
+				// 3. Handle special cases like style objects that might look different but be equivalent
+				((!isHydrating || 
+				  typeof value == 'function' || 
+				  oldProps[i] === undefined ||
+				  (i === 'style' && typeof value === 'object') ||
+				  oldProps[i] !== value))
 			) {
-				setProperty(dom, i, value, oldProps[i], namespace);
+				// During hydration, only update if there's a real difference
+				// or for critical properties that need client-side handling
+				if (!isHydrating || 
+					typeof value == 'function' || 
+					oldProps[i] === undefined || 
+					oldProps[i] !== value) {
+					setProperty(dom, i, value, oldProps[i], namespace);
+				}
 			}
 		}
 
@@ -529,6 +615,8 @@ function diffElementNodes(
 		if (newHtml) {
 			// Avoid re-applying the same '__html' if it did not changed between re-render
 			if (
+				// During hydration, we should preserve the server-rendered HTML
+				// unless it's explicitly different from what we want to render
 				!isHydrating &&
 				(!oldHtml ||
 					(newHtml.__html !== oldHtml.__html &&
@@ -539,8 +627,11 @@ function diffElementNodes(
 
 			newVNode._children = [];
 		} else {
-			if (oldHtml) dom.innerHTML = '';
+			// Only clear innerHTML if we're not hydrating and there was oldHtml
+			if (!isHydrating && oldHtml) dom.innerHTML = '';
 
+			// When diffing children during hydration, we need to be careful about
+			// preserving the server-rendered DOM structure while updating the virtual DOM
 			diffChildren(
 				// @ts-expect-error
 				newVNode.type === 'template' ? dom.content : dom,
@@ -561,36 +652,57 @@ function diffElementNodes(
 			// Remove children that are not part of any vnode.
 			if (excessDomChildren != NULL) {
 				for (i = excessDomChildren.length; i--; ) {
-					removeNode(excessDomChildren[i]);
+					if (excessDomChildren[i] != NULL) {
+						// During hydration, we should log when we're removing nodes
+						// that weren't expected, as this indicates a hydration mismatch
+						if (isHydrating && options._hydrationMismatch) {
+							options._hydrationMismatch(
+								newVNode, 
+								[excessDomChildren[i]], 
+								'excess-children'
+							);
+						}
+						removeNode(excessDomChildren[i]);
+					}
 				}
 			}
 		}
 
-		// As above, don't diff props during hydration
-		if (!isHydrating) {
-			i = 'value';
-			if (nodeType == 'progress' && inputValue == NULL) {
-				dom.removeAttribute('value');
-			} else if (
-				inputValue !== UNDEFINED &&
-				// #2756 For the <progress>-element the initial value is 0,
-				// despite the attribute not being present. When the attribute
-				// is missing the progress bar is treated as indeterminate.
-				// To fix that we'll always update it when it is 0 for progress elements
-				(inputValue !== dom[i] ||
-					(nodeType == 'progress' && !inputValue) ||
-					// This is only for IE 11 to fix <select> value not being updated.
-					// To avoid a stale select value we need to set the option.value
-					// again, which triggers IE11 to re-evaluate the select value
-					(nodeType == 'option' && inputValue !== oldProps[i]))
-			) {
-				setProperty(dom, i, inputValue, oldProps[i], namespace);
-			}
+		// Handle special properties that need client-side updates
+		// even during hydration for interactive elements
+		i = 'value';
+		if (nodeType == 'progress' && inputValue == NULL) {
+			dom.removeAttribute('value');
+		} else if (
+			inputValue !== UNDEFINED &&
+			// #2756 For the <progress>-element the initial value is 0,
+			// despite the attribute not being present. When the attribute
+			// is missing the progress bar is treated as indeterminate.
+			// To fix that we'll always update it when it is 0 for progress elements
+			(inputValue !== dom[i] ||
+				(nodeType == 'progress' && !inputValue) ||
+				// This is only for IE 11 to fix <select> value not being updated.
+				// To avoid a stale select value we need to set the option.value
+				// again, which triggers IE11 to re-evaluate the select value
+				(nodeType == 'option' && inputValue !== oldProps[i]) ||
+				// Always update form element values during hydration
+				// to ensure interactive elements work correctly
+				(isHydrating && (
+					nodeType === 'input' || 
+					nodeType === 'textarea' || 
+					nodeType === 'select'
+				)))
+		) {
+			setProperty(dom, i, inputValue, oldProps[i], namespace);
+		}
 
-			i = 'checked';
-			if (checked !== UNDEFINED && checked !== dom[i]) {
-				setProperty(dom, i, checked, oldProps[i], namespace);
-			}
+		i = 'checked';
+		if (checked !== UNDEFINED && 
+			(checked !== dom[i] || 
+			 // Always update checkbox/radio during hydration
+			 (isHydrating && (nodeType === 'input')))
+		) {
+			setProperty(dom, i, checked, oldProps[i], namespace);
 		}
 	}
 
