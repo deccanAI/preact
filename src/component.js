@@ -14,7 +14,25 @@ import { MODE_HYDRATE, NULL } from './constants';
 export function BaseComponent(props, context) {
 	this.props = props;
 	this.context = context;
+	this._computedCache = new Map();
 }
+
+/**
+ * Memoize a computed value based on dependencies
+ * @param {Function} compute Function that computes the value
+ * @param {Array} deps Array of dependencies that affect the computed value
+ * @returns {any} The memoized computed value
+ */
+BaseComponent.prototype.computed = function (compute, deps) {
+	const key = deps.join(',');
+	const cached = this._computedCache.get(key);
+	if (cached && cached.deps.every((dep, i) => dep === deps[i])) {
+		return cached.value;
+	}
+	const value = compute.call(this);
+	this._computedCache.set(key, { deps: deps.slice(), value });
+	return value;
+};
 
 /**
  * Update component state and schedule a re-render.
@@ -41,7 +59,21 @@ BaseComponent.prototype.setState = function (update, callback) {
 	}
 
 	if (update) {
-		assign(s, update);
+		// Compare values before updating to avoid unnecessary state changes
+		let hasChanges = false;
+		for (let key in update) {
+			if (s[key] !== update[key]) {
+				hasChanges = true;
+				break;
+			}
+		}
+		if (hasChanges) {
+			assign(s, update);
+		} else {
+			// No actual changes, skip the update
+			if (callback) callback();
+			return;
+		}
 	}
 
 	// Skip update if updater function returned null
@@ -51,7 +83,17 @@ BaseComponent.prototype.setState = function (update, callback) {
 		if (callback) {
 			this._stateCallbacks.push(callback);
 		}
-		enqueueRender(this);
+
+		// Batch updates by using microtask timing
+		if (!this._pendingUpdate) {
+			this._pendingUpdate = true;
+			Promise.resolve().then(() => {
+				if (this._pendingUpdate) {
+					this._pendingUpdate = false;
+					enqueueRender(this);
+				}
+			});
+		}
 	}
 };
 
@@ -222,26 +264,31 @@ function process() {
 	let c,
 		l = 1;
 
-	// Don't update `renderCount` yet. Keep its value non-zero to prevent unnecessary
-	// process() calls from getting scheduled while `queue` is still being consumed.
-	while (rerenderQueue.length) {
-		// Keep the rerender queue sorted by (depth, insertion order). The queue
-		// will initially be sorted on the first iteration only if it has more than 1 item.
-		//
-		// New items can be added to the queue e.g. when rerendering a provider, so we want to
-		// keep the order from top to bottom with those new items so we can handle them in a
-		// single pass
-		if (rerenderQueue.length > l) {
-			rerenderQueue.sort(depthSort);
-		}
+	// Create a Set to track unique components and avoid duplicate renders
+	const uniqueComponents = new Set();
 
-		c = rerenderQueue.shift();
-		l = rerenderQueue.length;
-
-		if (c._dirty) {
-			renderComponent(c);
+	// First pass: collect unique components and sort by depth
+	for (let i = 0; i < rerenderQueue.length; i++) {
+		const component = rerenderQueue[i];
+		if (!uniqueComponents.has(component)) {
+			uniqueComponents.add(component);
 		}
 	}
+
+	// Convert Set back to array and sort by depth
+	const sortedQueue = Array.from(uniqueComponents).sort(depthSort);
+
+	// Process the sorted, deduplicated queue
+	for (const component of sortedQueue) {
+		if (component._dirty) {
+			// Clear the dirty flag before rendering to handle nested updates
+			component._dirty = false;
+			renderComponent(component);
+		}
+	}
+
+	// Clear the queue and reset counter
+	rerenderQueue.length = 0;
 	process._rerenderCount = 0;
 }
 

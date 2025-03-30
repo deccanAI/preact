@@ -1,0 +1,36 @@
+Plan for Optimizing Preact's Signal Behavior
+
+1. Analysis of Current Implementation
+- Review signal-related code in src/ directory
+- Identify areas where unnecessary re-renders might occur
+- Map out the state tracking system
+
+2. Key Areas to Optimize
+a) Internal State Tracking
+- Improve the state dependency tracking mechanism
+- Implement more efficient dirty checking
+- Reduce memory overhead of state management
+
+b) Re-render Optimization
+- Add granular update checks
+- Implement batching for multiple signal updates
+- Add memoization for computed signals
+
+c) Edge Cases to Handle
+- Multiple rapid signal updates
+- Circular dependencies
+- Nested signal updates
+- Component unmounting with active signals
+
+3. Implementation Steps
+1. Enhance the component update mechanism
+2. Implement smart diffing for signal changes
+3. Add batching system for multiple updates
+4. Improve dependency tracking
+5. Add safeguards for edge cases
+
+4. Testing Strategy
+- Create reproduction cases for performance issues
+- Benchmark before/after changes
+- Test edge cases thoroughly
+- Ensure backward compatibility
