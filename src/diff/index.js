@@ -15,6 +15,11 @@ import { diffChildren } from './children';
 import { setProperty } from './props';
 import { assign, isArray, removeNode, slice } from '../util';
 import options from '../options';
+import { 
+	handleHydrationMismatch, 
+	shouldHydrate, 
+	triggerHydrationComplete 
+} from '../hydration';
 
 /**
  * @typedef {import('../internal').ComponentChildren} ComponentChildren
@@ -338,6 +343,11 @@ export function diff(
 
 	if ((tmp = options.diffed)) tmp(newVNode);
 
+	// If we're hydrating, trigger the hydration complete event
+	if (isHydrating && newVNode._dom) {
+		triggerHydrationComplete(newVNode._dom);
+	}
+
 	return newVNode._flags & MODE_SUSPENDED ? undefined : oldDom;
 }
 
@@ -420,6 +430,22 @@ function diffElementNodes(
 	let value;
 	let inputValue;
 	let checked;
+	
+	// Check if we should hydrate this element
+	if (isHydrating && dom && shouldHydrate(dom, newVNode)) {
+		// Store reference to the hydration mismatch handler if provided
+		const onHydrationMismatch = newProps && newProps.onHydrationMismatch;
+		
+		// Compare node type for hydration verification
+		if (dom.nodeName.toLowerCase() !== nodeType.toLowerCase()) {
+			// Handle hydration mismatch
+			if (!handleHydrationMismatch(dom, nodeType.toLowerCase(), dom.nodeName.toLowerCase(), onHydrationMismatch)) {
+				// If we're not preserving server content, continue with normal diffing
+				// Otherwise, we'll skip diffing and preserve the server-rendered content
+				isHydrating = false;
+			}
+		}
+	}
 
 	// Tracks entering and exiting namespaces when descending through the tree.
 	if (nodeType == 'svg') namespace = SVG_NAMESPACE;
@@ -518,6 +544,11 @@ function diffElementNodes(
 			} else if (i == 'checked') {
 				checked = value;
 			} else if (
+				// Skip hydration-specific props during diffing
+				i !== 'hydrate' && 
+				i !== 'hydrationMismatch' && 
+				i !== 'onHydrated' && 
+				i !== 'onHydrationMismatch' &&
 				(!isHydrating || typeof value == 'function') &&
 				oldProps[i] !== value
 			) {

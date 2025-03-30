@@ -3,6 +3,7 @@ import { commitRoot, diff } from './diff/index';
 import { createElement, Fragment } from './create-element';
 import options from './options';
 import { slice } from './util';
+import { startHydration, endHydration, isHydrating } from './hydration';
 
 /**
  * Render a Preact virtual node into a DOM element
@@ -22,7 +23,7 @@ export function render(vnode, parentDom, replaceNode) {
 	// We abuse the `replaceNode` parameter in `hydrate()` to signal if we are in
 	// hydration mode or not by passing the `hydrate` function instead of a DOM
 	// element..
-	let isHydrating = typeof replaceNode == 'function';
+	let isHydrating = typeof replaceNode == 'function' || isHydrating();
 
 	// To be able to support calling `render()` multiple times on the same
 	// DOM node, we need to obtain a reference to the previous tree. We do

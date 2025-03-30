@@ -311,6 +311,30 @@ export function render(
 	replaceNode?: Element | Text
 ): void;
 export function hydrate(vnode: ComponentChild, parent: ContainerNode): void;
+
+/**
+ * Start the hydration process
+ * @param dom The DOM node to hydrate
+ * @returns True if hydration was started
+ */
+export function startHydration(dom: Element | DocumentFragment): boolean;
+
+/**
+ * End the hydration process
+ */
+export function endHydration(): void;
+
+/**
+ * Check if we're currently hydrating
+ * @returns True if currently hydrating
+ */
+export function isHydrating(): boolean;
+
+/**
+ * Set hydration options
+ * @param options The hydration options to set
+ */
+export function setHydrationOptions(options: JSX.HydrationOptions): void;
 export function cloneElement(
 	vnode: VNode<any>,
 	props?: any,
