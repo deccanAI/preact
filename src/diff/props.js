@@ -28,6 +28,9 @@ const CAPTURE_REGEX = /(PointerCapture)$|Capture$/i;
 // per second for over 280 years before the value reaches Number.MAX_SAFE_INTEGER (2**53 - 1).
 let eventClock = 0;
 
+// Store references to event handlers for cleanup during unmounting
+const eventHandlerRegistry = new WeakMap();
+
 /**
  * Set a property value on a DOM node
  * @param {import('../internal').PreactElement} dom The DOM node to modify
@@ -72,7 +75,8 @@ export function setProperty(dom, name, value, oldValue, namespace) {
 		if (
 			name.toLowerCase() in dom ||
 			name == 'onFocusOut' ||
-			name == 'onFocusIn'
+			name == 'onFocusIn' ||
+			name == 'onCommand'
 		)
 			name = name.toLowerCase().slice(2);
 		else name = name.slice(2);
@@ -83,20 +87,27 @@ export function setProperty(dom, name, value, oldValue, namespace) {
 		if (value) {
 			if (!oldValue) {
 				value._attached = eventClock;
-				dom.addEventListener(
-					name,
-					useCapture ? eventProxyCapture : eventProxy,
-					useCapture
-				);
+				const handler = useCapture ? eventProxyCapture : eventProxy;
+				
+				// Register the event handler for cleanup
+				if (!eventHandlerRegistry.has(dom)) {
+					eventHandlerRegistry.set(dom, new Map());
+				}
+				eventHandlerRegistry.get(dom).set(name + useCapture, handler);
+				
+				dom.addEventListener(name, handler, useCapture);
 			} else {
 				value._attached = oldValue._attached;
 			}
 		} else {
-			dom.removeEventListener(
-				name,
-				useCapture ? eventProxyCapture : eventProxy,
-				useCapture
-			);
+			const handler = eventHandlerRegistry.get(dom)?.get(name + useCapture);
+			if (handler) {
+				dom.removeEventListener(name, handler, useCapture);
+				eventHandlerRegistry.get(dom)?.delete(name + useCapture);
+				if (eventHandlerRegistry.get(dom)?.size === 0) {
+					eventHandlerRegistry.delete(dom);
+				}
+			}
 		}
 	} else {
 		if (namespace == SVG_NAMESPACE) {
@@ -158,18 +169,45 @@ function createEventProxy(useCapture) {
 	return function (e) {
 		if (this._listeners) {
 			const eventHandler = this._listeners[e.type + useCapture];
+			
+			// Skip if no handler exists
+			if (!eventHandler) return;
+			
+			// Initialize _dispatched if not already set
 			if (e._dispatched == NULL) {
 				e._dispatched = eventClock++;
-
-				// When `e._dispatched` is smaller than the time when the targeted event
-				// handler was attached we know we have bubbled up to an element that was added
-				// during patching the DOM.
-			} else if (e._dispatched < eventHandler._attached) {
+			}
+			
+			// Handle event bubbling in dynamically added elements
+			// When `e._dispatched` is smaller than the time when the targeted event
+			// handler was attached we know we have bubbled up to an element that was added
+			// during patching the DOM.
+			else if (e._dispatched < eventHandler._attached) {
 				return;
 			}
-			return eventHandler(options.event ? options.event(e) : e);
+			
+			// Process the event through options.event hook if available
+			const processedEvent = options.event ? options.event(e) : e;
+			
+			// Call the event handler with the processed event
+			return eventHandler(processedEvent);
 		}
 	};
+}
+
+/**
+ * Cleanup all event handlers for a DOM node
+ * @param {import('../internal').PreactElement} dom The DOM node to cleanup
+ */
+export function cleanupEventHandlers(dom) {
+	if (eventHandlerRegistry.has(dom)) {
+		const handlers = eventHandlerRegistry.get(dom);
+		handlers.forEach((handler, eventKey) => {
+			const [eventName, useCapture] = eventKey.split('true');
+			dom.removeEventListener(eventName, handler, useCapture === 'true');
+		});
+		eventHandlerRegistry.delete(dom);
+	}
 }
 
 const eventProxy = createEventProxy(false);

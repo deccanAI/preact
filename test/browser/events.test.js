@@ -235,4 +235,74 @@ describe('event handling', () => {
 			.to.have.been.calledTwice.and.to.have.been.calledWith('focusin')
 			.and.calledWith('focusout');
 	});
+
+	it('should properly clean up event handlers on unmount', () => {
+		const clickHandler = sinon.spy();
+		const mouseDownHandler = sinon.spy();
+		
+		// Render with event handlers
+		render(
+			<div onClick={clickHandler} onMouseDown={mouseDownHandler}>
+				<button>Click me</button>
+			</div>,
+			scratch
+		);
+		
+		// Verify handlers were added
+		expect(proto.addEventListener).to.have.been.calledWith('click');
+		expect(proto.addEventListener).to.have.been.calledWith('mousedown');
+		
+		// Reset call history
+		proto.addEventListener.resetHistory();
+		proto.removeEventListener.resetHistory();
+		
+		// Unmount
+		render(null, scratch);
+		
+		// Verify handlers were removed
+		expect(proto.removeEventListener).to.have.been.calledWith('click');
+		expect(proto.removeEventListener).to.have.been.calledWith('mousedown');
+	});
+
+	it('should handle events on dynamically added elements correctly', () => {
+		const parentClick = sinon.spy();
+		const childClick = sinon.spy();
+		
+		// Initial render with just parent
+		render(
+			<div onClick={parentClick} id="parent">
+				Parent
+			</div>,
+			scratch
+		);
+		
+		// Trigger click on parent
+		fireEvent(scratch.querySelector('#parent'), 'click');
+		expect(parentClick).to.have.been.calledOnce;
+		
+		// Update to add child
+		render(
+			<div onClick={parentClick} id="parent">
+				Parent
+				<button onClick={childClick} id="child">Child</button>
+			</div>,
+			scratch
+		);
+		
+		// Click the child
+		fireEvent(scratch.querySelector('#child'), 'click');
+		
+		// Both handlers should be called (bubbling)
+		expect(childClick).to.have.been.calledOnce;
+		expect(parentClick).to.have.been.calledTwice;
+	});
+
+	it('should support command events', () => {
+		const commandHandler = sinon.spy();
+		
+		render(<div onCommand={commandHandler} />, scratch);
+		
+		expect(proto.addEventListener)
+			.to.have.been.calledWith('command');
+	});
 });

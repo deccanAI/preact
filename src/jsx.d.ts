@@ -576,8 +576,9 @@ export namespace JSXInternal {
 	export type ClipboardEventHandler<Target extends EventTarget> = EventHandler<
 		TargetedClipboardEvent<Target>
 	>;
-	export type CommandEventHandler<Target extends EventTarget> =
+	export type CommandEventHandler<Target extends EventTarget> = EventHandler<
 		TargetedCommandEvent<Target>
+	>;
 	export type CompositionEventHandler<Target extends EventTarget> =
 		EventHandler<TargetedCompositionEvent<Target>>;
 	export type DragEventHandler<Target extends EventTarget> = EventHandler<

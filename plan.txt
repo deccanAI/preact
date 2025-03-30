@@ -1,0 +1,30 @@
+# Plan for Improving Preact's Third-Party Library Compatibility
+
+## Issues to Address
+1. Event delegation and synthetic event handling
+   - Current event handling doesn't properly handle events that might be dispatched during DOM updates
+   - Need to improve event clock mechanism to be more robust
+   - Add support for CommandEvent which is missing in event handling
+
+2. Event cleanup during component unmounting
+   - Potential memory leaks when components unmount but event handlers remain
+   - Need to ensure proper cleanup of event listeners
+
+3. Event propagation and bubbling
+   - Current implementation has issues with event bubbling in dynamically added elements
+   - Need to refine how events are captured and propagated
+
+## Implementation Steps
+1. Enhance event proxy system in diff/props.js
+   - Improve event clock mechanism
+   - Add proper cleanup for event handlers
+   - Fix event bubbling issues
+
+2. Update JSX type definitions in jsx.d.ts
+   - Fix CommandEventHandler type definition
+   - Ensure proper typing for all event handlers
+
+3. Add test for event handling in browser/events.test.js
+   - Test event cleanup during unmounting
+   - Test event bubbling in dynamically added elements
+   - Test compatibility with synthetic event systems
