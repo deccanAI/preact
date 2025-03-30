@@ -29,6 +29,11 @@ export interface VNode<P = {}> {
 	 * Default value: `-1`
 	 */
 	endTime?: number;
+	/**
+	 * Indicates if this node experienced a hydration mismatch.
+	 * Used to improve SSR hydration recovery.
+	 */
+	_hydrationMismatch?: boolean;
 }
 
 //

@@ -10,6 +10,9 @@ export function createContext(defaultValue) {
 			let subs = new Set();
 			let ctx = {};
 			ctx[Context._id] = this;
+			
+			// Track if we're in hydration mode
+			this._hydrating = typeof document !== 'undefined' && document.readyState !== 'complete';
 
 			this.getChildContext = () => ctx;
 
@@ -20,10 +23,24 @@ export function createContext(defaultValue) {
 			this.shouldComponentUpdate = function (_props) {
 				// @ts-expect-error even
 				if (this.props.value !== _props.value) {
+					// During hydration, we need to be more careful about updates
+					// to avoid unnecessary re-renders that could cause mismatches
+					const isHydrating = this._hydrating && document.readyState !== 'complete';
+					
 					subs.forEach(c => {
+						// Mark component for update
 						c._force = true;
+						
+						// Track if this update happened during hydration
+						if (isHydrating) {
+							c._hydrationMismatch = true;
+						}
+						
 						enqueueRender(c);
 					});
+					
+					// After first render, we're no longer in hydration mode
+					this._hydrating = false;
 				}
 			};
 
@@ -47,6 +64,11 @@ export function createContext(defaultValue) {
 
 	/** @type {import('./internal').FunctionComponent} */
 	Context.Consumer = (props, contextValue) => {
+		// If we're in a hydration mismatch situation, use the default value
+		// to avoid layout shifts during hydration
+		if (props._hydrationMismatch) {
+			return props.children(Context._defaultValue);
+		}
 		return props.children(contextValue);
 	};
 

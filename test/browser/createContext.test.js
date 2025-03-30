@@ -961,6 +961,30 @@ describe('createContext', () => {
 		rerender();
 		expect(scratch.innerHTML).to.equal('<p>hi</p>');
 	});
+	
+	it('should handle hydration correctly', () => {
+		const defaultValue = { state: 'default' };
+		const context = createContext(defaultValue);
+		const CONTEXT = { state: 'client-side' };
+		
+		// Pre-populate the DOM as if it was server rendered
+		scratch.innerHTML = '<div><p>server-side</p></div>';
+		
+		// Now hydrate with a different value
+		hydrate(
+			<context.Provider value={CONTEXT}>
+				<div>
+					<context.Consumer>
+						{data => <p>{data.state}</p>}
+					</context.Consumer>
+				</div>
+			</context.Provider>,
+			scratch
+		);
+		
+		// The content should be updated to match client-side rendering
+		expect(scratch.innerHTML).to.equal('<div><p>client-side</p></div>');
+	});
 
 	it('should not call sCU on context update', () => {
 		const Ctx = createContext('foo');

@@ -498,6 +498,50 @@ describe('compat render', () => {
 		expect(mountSpy).to.be.calledOnce;
 		expect(updateSpy).to.not.be.calledOnce;
 	});
+	
+	it('should handle hydration with context correctly', () => {
+		const Ctx = createContext('default');
+		const updateSpy = sinon.spy();
+		const mountSpy = sinon.spy();
+		
+		// Pre-populate the DOM as if it was server rendered with a different value
+		scratch.innerHTML = '<div><p>server-value</p></div>';
+		
+		class Consumer extends Component {
+			componentDidMount() {
+				mountSpy();
+			}
+			
+			componentDidUpdate() {
+				updateSpy();
+			}
+			
+			render() {
+				return (
+					<Ctx.Consumer>
+						{value => <p>{value}</p>}
+					</Ctx.Consumer>
+				);
+			}
+		}
+		
+		// Now hydrate with a client value
+		hydrate(
+			<Ctx.Provider value="client-value">
+				<div>
+					<Consumer />
+				</div>
+			</Ctx.Provider>,
+			scratch
+		);
+		
+		// The component should mount but not update during hydration
+		expect(mountSpy).to.be.calledOnce;
+		expect(updateSpy).to.not.be.called;
+		
+		// Content should be updated to match client rendering
+		expect(scratch.innerHTML).to.equal('<div><p>client-value</p></div>');
+	});
 
 	it('should support the translate attribute w/ yes as a string', () => {
 		render(<b translate="yes">Bold</b>, scratch);

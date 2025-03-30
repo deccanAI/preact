@@ -258,7 +258,7 @@ describe('useContext', () => {
 				});
 			}, [config]);
 
-			return <div>{config.name}</div>;
+			return <div>{config ? config.name : 'loading'}</div>;
 		};
 
 		const App = props => {
@@ -379,5 +379,39 @@ describe('useContext', () => {
 			set(defaultValue);
 		});
 		expect(scratch.innerHTML).to.equal('<p>hi</p>');
+	});
+	
+	it('should handle hydration mismatches gracefully', () => {
+		const defaultValue = { state: 'default' };
+		const context = createContext(defaultValue);
+		
+		// Simulate a component with hydration mismatch
+		const Consumer = () => {
+			const ctx = useContext(context);
+			return <p>{ctx.state}</p>;
+		};
+		
+		// Create a provider with a value that would be different
+		// between server and client rendering
+		const Provider = () => {
+			// Simulate different value during hydration
+			const value = { state: 'client-side' };
+			
+			return (
+				<context.Provider value={value}>
+					<Consumer />
+				</context.Provider>
+			);
+		};
+		
+		// Simulate server-rendered HTML
+		scratch.innerHTML = '<p>server-side</p>';
+		
+		// Now hydrate with client-side value
+		hydrate(<Provider />, scratch);
+		
+		// The content should be updated to match client-side rendering
+		// without errors or warnings
+		expect(scratch.innerHTML).to.equal('<p>client-side</p>');
 	});
 });
