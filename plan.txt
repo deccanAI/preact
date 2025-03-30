@@ -1,0 +1,37 @@
+# Plan for Optimizing Preact's Signal Handling
+
+## Problem Analysis
+The current implementation of Preact's signal handling has several inefficiencies:
+1. Redundant computations when multiple signals change simultaneously
+2. Inefficient batching of updates
+3. Inconsistent behavior during state transitions
+4. Unnecessary re-renders when dependencies haven't meaningfully changed
+
+## Solution Strategy
+
+### 1. Improve the act() function in test-utils
+- Implement a more efficient queue management system for batched updates
+- Add proper tracking of pending effects to avoid redundant processing
+- Ensure consistent state transitions during nested act() calls
+- Optimize the flush mechanism to reduce unnecessary re-renders
+
+### 2. Enhance signal dependency tracking
+- Implement a more granular dependency tracking system
+- Add a mechanism to detect and skip redundant updates
+- Ensure predictable behavior when multiple signals change simultaneously
+
+### 3. Optimize teardown process
+- Ensure complete cleanup of all resources
+- Prevent memory leaks by properly resetting all internal state
+
+### Implementation Details
+- Refactor the act() function to use a more efficient queue system
+- Implement a smarter flush mechanism that can detect and skip unnecessary updates
+- Add proper error handling to ensure consistent state even when exceptions occur
+- Improve the teardown process to ensure complete cleanup
+
+### Expected Benefits
+- Reduced number of unnecessary re-renders
+- More predictable behavior during complex state transitions
+- Better performance when multiple signals change simultaneously
+- Lower memory usage due to improved cleanup

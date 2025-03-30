@@ -565,5 +565,90 @@ describe('act', () => {
 				});
 			}).to.throw('Array flush error');
 		});
+		
+		it('should deduplicate identical callbacks', () => {
+			let callCount = 0;
+			const callback = () => callCount++;
+
+			act(() => {
+				options.requestAnimationFrame(callback);
+				options.requestAnimationFrame(callback); // Same callback reference
+				options.requestAnimationFrame(callback); // Should be deduplicated
+			});
+
+			expect(callCount).to.equal(1);
+		});
+		
+		it('should handle cascading effects efficiently', () => {
+			let outerEffectCount = 0;
+			let innerEffectCount = 0;
+			
+			function TestComponent() {
+				const [count, setCount] = useState(0);
+				
+				useEffect(() => {
+					outerEffectCount++;
+					if (count === 0) {
+						setCount(1); // This should trigger another effect cycle
+					}
+				}, [count]);
+				
+				useEffect(() => {
+					innerEffectCount++;
+				}, [count]);
+				
+				return <div>{count}</div>;
+			}
+			
+			act(() => {
+				render(<TestComponent />, scratch);
+			});
+			
+			expect(outerEffectCount).to.equal(2); // Initial + after state update
+			expect(innerEffectCount).to.equal(2); // Should run same number of times
+			expect(scratch.textContent).to.equal('1');
+		});
+	});
+	
+	describe('batched updates optimization', () => {
+		it('should batch multiple state updates efficiently', () => {
+			let renderCount = 0;
+			
+			function Counter() {
+				const [count, setCount] = useState(0);
+				const [otherState, setOtherState] = useState(0);
+				
+				renderCount++;
+				
+				return (
+					<div>
+						<button onClick={() => {
+							// Multiple state updates in one event handler
+							setCount(c => c + 1);
+							setOtherState(s => s + 1);
+						}}>
+							Increment
+						</button>
+						<p>{count},{otherState}</p>
+					</div>
+				);
+			}
+			
+			act(() => {
+				render(<Counter />, scratch);
+			});
+			
+			const initialRenderCount = renderCount;
+			
+			act(() => {
+				const button = scratch.querySelector('button');
+				button.click();
+			});
+			
+			// Should only cause one additional render, not two
+			// (one for initial render, one for the batched updates)
+			expect(renderCount).to.equal(initialRenderCount + 1);
+			expect(scratch.querySelector('p').textContent).to.equal('1,1');
+		});
 	});
 });
