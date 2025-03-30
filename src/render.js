@@ -75,5 +75,13 @@ export function render(vnode, parentDom, replaceNode) {
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
 export function hydrate(vnode, parentDom) {
-	render(vnode, parentDom, hydrate);
+	// Start hydration process
+	startHydration(parentDom);
+	
+	try {
+		render(vnode, parentDom, hydrate);
+	} finally {
+		// End hydration process regardless of success or failure
+		endHydration();
+	}
 }
