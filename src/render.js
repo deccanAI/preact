@@ -74,5 +74,20 @@ export function render(vnode, parentDom, replaceNode) {
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
 export function hydrate(vnode, parentDom) {
+	// Optimize hydration by checking if the DOM structure matches exactly
+	if (vnode && parentDom && parentDom.firstChild) {
+		const isSimpleNode =
+			typeof vnode.type === 'string' && !vnode.props.dangerouslySetInnerHTML;
+		const hasExactMatch =
+			isSimpleNode &&
+			parentDom.firstChild.nodeName.toLowerCase() === vnode.type.toLowerCase();
+
+		// Fast path for simple elements with exact match
+		if (hasExactMatch && !vnode.props.children) {
+			vnode._dom = parentDom.firstChild;
+			return;
+		}
+	}
+
 	render(vnode, parentDom, hydrate);
 }

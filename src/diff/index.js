@@ -456,15 +456,39 @@ function diffElementNodes(
 			newProps.is && newProps
 		);
 
-		// we are creating a new node, so we can assume this is a new subtree (in
-		// case we are hydrating), this deopts the hydrate
+		// Improved hydration mismatch handling
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
-			isHydrating = false;
+			if (options._hydrationMismatch) {
+				// Try to find a matching node in excessDomChildren before giving up
+				let foundMatch = false;
+				if (excessDomChildren) {
+					for (let i = 0; i < excessDomChildren.length; i++) {
+						const excess = excessDomChildren[i];
+						if (
+							excess &&
+							excess.nodeName.toLowerCase() === nodeType.toLowerCase()
+						) {
+							dom = excess;
+							excessDomChildren[i] = NULL;
+							foundMatch = true;
+							break;
+						}
+					}
+				}
+
+				if (!foundMatch) {
+					options._hydrationMismatch(newVNode, excessDomChildren);
+					isHydrating = false;
+				}
+			} else {
+				isHydrating = false;
+			}
 		}
-		// we created a new parent, so none of the previously attached children can be reused:
-		excessDomChildren = NULL;
+
+		// Only clear excessDomChildren if we couldn't find a match
+		if (!isHydrating) {
+			excessDomChildren = NULL;
+		}
 	}
 
 	if (nodeType === NULL) {

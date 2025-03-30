@@ -227,14 +227,13 @@ function constructNewChildrenArray(
 		childVNode._parent = newParentVNode;
 		childVNode._depth = newParentVNode._depth + 1;
 
-		// Temporarily store the matchingIndex on the _index property so we can pull
-		// out the oldVNode in diffChildren. We'll override this to the VNode's
-		// final index after using this property to get the oldVNode
+		// Enhanced matching for hydration
 		const matchingIndex = (childVNode._index = findMatchingIndex(
 			childVNode,
 			oldChildren,
 			skewedIndex,
-			remainingOldChildren
+			remainingOldChildren,
+			isHydrating
 		));
 
 		oldVNode = NULL;
@@ -402,25 +401,41 @@ function findMatchingIndex(
 	childVNode,
 	oldChildren,
 	skewedIndex,
-	remainingOldChildren
+	remainingOldChildren,
+	isHydrating
 ) {
 	const key = childVNode.key;
 	const type = childVNode.type;
 	let oldVNode = oldChildren[skewedIndex];
 
-	// We only need to perform a search if there are more children
-	// (remainingOldChildren) to search. However, if the oldVNode we just looked
-	// at skewedIndex was not already used in this diff, then there must be at
-	// least 1 other (so greater than 1) remainingOldChildren to attempt to match
-	// against. So the following condition checks that ensuring
-	// remainingOldChildren > 1 if the oldVNode is not already used/matched. Else
-	// if the oldVNode was null or matched, then there could needs to be at least
-	// 1 (aka `remainingOldChildren > 0`) children to find and compare against.
-	//
-	// If there is an unkeyed functional VNode, that isn't a built-in like our Fragment,
-	// we should not search as we risk re-using state of an unrelated VNode. (reverted for now)
+	// Fast path for hydration with keyed elements
+	if (isHydrating && key != null) {
+		// During hydration, we can optimize by doing a direct key lookup
+		for (let i = 0; i < oldChildren.length; i++) {
+			const oldChild = oldChildren[i];
+			if (
+				oldChild &&
+				oldChild.key === key &&
+				oldChild.type === type &&
+				(oldChild._flags & MATCHED) === 0
+			) {
+				return i;
+			}
+		}
+	}
+
+	// Optimized path for hydration with unkeyed elements
+	if (
+		isHydrating &&
+		!key &&
+		oldVNode &&
+		!oldVNode.key &&
+		type === oldVNode.type
+	) {
+		return skewedIndex;
+	}
+
 	let shouldSearch =
-		// (typeof type != 'function' || type === Fragment || key) &&
 		remainingOldChildren >
 		(oldVNode != NULL && (oldVNode._flags & MATCHED) == 0 ? 1 : 0);
 
@@ -433,6 +448,22 @@ function findMatchingIndex(
 	) {
 		return skewedIndex;
 	} else if (shouldSearch) {
+		// During hydration, prioritize matching by type for unkeyed elements
+		if (isHydrating && !key) {
+			for (let i = 0; i < oldChildren.length; i++) {
+				const oldChild = oldChildren[i];
+				if (
+					oldChild &&
+					!oldChild.key &&
+					oldChild.type === type &&
+					(oldChild._flags & MATCHED) === 0
+				) {
+					return i;
+				}
+			}
+		}
+
+		// Fallback to bidirectional search
 		let x = skewedIndex - 1;
 		let y = skewedIndex + 1;
 		while (x >= 0 || y < oldChildren.length) {
