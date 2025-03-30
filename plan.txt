@@ -1,0 +1,42 @@
+Optimization Plan for Preact Signal Handling
+
+1. Core Improvements:
+- Implement batch update queue with priority scheduling
+- Add dependency tracking optimization to reduce unnecessary re-renders
+- Introduce memoization for computed signals
+- Implement signal value diffing to skip updates when values haven't changed
+
+2. Implementation Steps:
+a) Create SignalBatch class to handle multiple signal updates
+   - Group related updates
+   - Sort by dependency depth
+   - Execute in microtask queue
+
+b) Enhance dependency tracking
+   - Use WeakMap for better memory management
+   - Implement circular dependency detection
+   - Add automatic cleanup of stale dependencies
+
+c) Optimize signal subscription mechanism
+   - Implement shallow comparison for object/array signals
+   - Add support for custom equality functions
+   - Cache previous values for quick comparison
+
+d) Add computed signal optimizations
+   - Lazy evaluation of computed values
+   - Cache computed results until dependencies change
+   - Track active computations to prevent memory leaks
+
+3. Testing Focus:
+- Verify batched update consistency
+- Check memory usage patterns
+- Ensure proper cleanup of subscriptions
+- Test edge cases with circular dependencies
+- Validate computed signal behavior
+
+4. Expected Outcomes:
+- Reduced number of re-renders
+- Better memory usage
+- More predictable update behavior
+- Improved performance with computed values
+- Cleaner dependency tracking
