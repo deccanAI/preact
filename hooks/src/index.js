@@ -191,8 +191,18 @@ export function useReducer(reducer, initialState, init) {
 				const nextValue = hookState._reducer(currentValue, action);
 
 				if (currentValue !== nextValue) {
+					// Batch updates by deferring state changes
+					if (!hookState._pendingUpdate) {
+						hookState._pendingUpdate = true;
+						Promise.resolve().then(() => {
+							if (hookState._pendingUpdate) {
+								hookState._nextValue = [nextValue, hookState._value[1]];
+								hookState._pendingUpdate = false;
+								hookState._component.setState({});
+							}
+						});
+					}
 					hookState._nextValue = [nextValue, hookState._value[1]];
-					hookState._component.setState({});
 				}
 			}
 		];
