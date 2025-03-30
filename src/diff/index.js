@@ -9,12 +9,38 @@ import {
 	UNDEFINED,
 	XHTML_NAMESPACE
 } from '../constants';
+import {
+	hydrationState,
+	compareNodeAttributes,
+	preserveDimensions,
+	handleHydrationMismatch,
+	shouldDeferHydration,
+	trackHydration,
+	isNodeHydrated,
+	resetHydrationState
+} from './hydration';
 import { BaseComponent, getDomSibling } from '../component';
 import { Fragment } from '../create-element';
 import { diffChildren } from './children';
 import { setProperty } from './props';
 import { assign, isArray, removeNode, slice } from '../util';
 import options from '../options';
+
+const requestIdleCallback =
+	typeof window !== 'undefined'
+		? window.requestIdleCallback ||
+			function (cb) {
+				const start = Date.now();
+				return setTimeout(() => {
+					cb({
+						didTimeout: false,
+						timeRemaining: () => Math.max(0, 50 - (Date.now() - start))
+					});
+				}, 1);
+			}
+		: function (cb) {
+				return setTimeout(cb, 1);
+			};
 
 /**
  * @typedef {import('../internal').ComponentChildren} ComponentChildren
@@ -353,6 +379,36 @@ export function commitRoot(commitQueue, root, refQueue) {
 
 	if (options._commit) options._commit(root, commitQueue);
 
+	// Handle deferred hydration
+	if (hydrationState.deferredNodes.size > 0) {
+		const deferredKeys = Array.from(hydrationState.deferredNodes);
+		requestIdleCallback(() => {
+			for (const key of deferredKeys) {
+				const node = document.querySelector(`[data-hydrate-key="${key}"]`);
+				if (node) {
+					hydrationState.deferredNodes.delete(key);
+					trackHydration(key, true);
+					// Re-render the node to enable interactivity
+					const vnode = node._vnode;
+					if (vnode) {
+						diff(
+							node.parentNode,
+							vnode,
+							vnode,
+							vnode._globalContext || EMPTY_OBJ,
+							vnode._namespace,
+							null,
+							[],
+							node,
+							false,
+							[]
+						);
+					}
+				}
+			}
+		});
+	}
+
 	commitQueue.some(c => {
 		try {
 			// @ts-expect-error Reuse the commitQueue variable here so the type changes
@@ -459,8 +515,27 @@ function diffElementNodes(
 		// we are creating a new node, so we can assume this is a new subtree (in
 		// case we are hydrating), this deopts the hydrate
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
+			const hydrationKey = newProps['data-hydrate-key'];
+			if (hydrationKey && isNodeHydrated(hydrationKey)) {
+				// Skip if already hydrated
+				return dom;
+			}
+
+			if (shouldDeferHydration(newVNode)) {
+				hydrationState.deferredNodes.add(hydrationKey);
+				return dom;
+			}
+
+			if (!compareNodeAttributes(dom, newProps, oldProps)) {
+				handleHydrationMismatch(newVNode, excessDomChildren);
+			}
+
+			preserveDimensions(dom);
+
+			if (hydrationKey) {
+				trackHydration(hydrationKey, true);
+			}
+
 			isHydrating = false;
 		}
 		// we created a new parent, so none of the previously attached children can be reused:

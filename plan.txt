@@ -1,0 +1,42 @@
+Preact Hydration Improvement Plan
+
+Objective:
+Enhance Preact's hydration process to improve reconciliation between server and client rendered components.
+
+Key Areas to Address:
+1. Hydration Mismatch Detection
+   - Implement more robust attribute comparison
+   - Add detailed mismatch warnings in development mode
+   - Track node positions for better tree alignment
+
+2. Reconciliation Process Enhancement
+   - Preserve server-rendered DOM where possible
+   - Implement deferred hydration for non-critical components
+   - Add support for partial hydration markers
+
+3. Edge Case Handling
+   - Handle void elements correctly
+   - Manage text node normalization
+   - Deal with dynamic attributes consistently
+
+Implementation Steps:
+1. Enhance hydration logic in core/diff/index.js
+   - Add improved node matching algorithm
+   - Implement attribute preservation logic
+   - Add development-mode warnings
+
+2. Update component mounting process
+   - Add hydration state tracking
+   - Implement deferred hydration mechanism
+   - Optimize attribute diffing
+
+3. Add safeguards for layout shifts
+   - Preserve initial dimensions during hydration
+   - Handle async content loads gracefully
+
+Expected Benefits:
+- Reduced hydration mismatches
+- Better development debugging experience
+- Smoother SSR to CSR transition
+- Minimized layout shifts
+- Improved performance through selective hydration
