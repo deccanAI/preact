@@ -69,7 +69,22 @@ export function diffChildren(
 	let oldChildren = (oldParentVNode && oldParentVNode._children) || EMPTY_ARR;
 
 	let newChildrenLength = renderResult.length;
-
+	
+	// Fast path: if no children or identical children, we can skip most of the work
+	if (newChildrenLength === 0) {
+		// If we had children before but not anymore, we need to unmount them
+		if (oldChildren.length) {
+			for (i = 0; i < oldChildren.length; i++) {
+				if (oldChildren[i] != NULL) {
+					unmount(oldChildren[i], oldChildren[i]);
+				}
+			}
+		}
+		newParentVNode._dom = null;
+		return null;
+	}
+	
+	// Construct the new children array and prepare for diffing
 	oldDom = constructNewChildrenArray(
 		newParentVNode,
 		renderResult,
@@ -78,6 +93,7 @@ export function diffChildren(
 		newChildrenLength
 	);
 
+	// Process each new child
 	for (i = 0; i < newChildrenLength; i++) {
 		childVNode = newParentVNode._children[i];
 		if (childVNode == NULL) continue;
@@ -93,44 +109,56 @@ export function diffChildren(
 		// Update childVNode._index to its final index
 		childVNode._index = i;
 
-		// Morph the old element into the new one, but don't append it to the dom yet
-		let result = diff(
-			parentDom,
-			childVNode,
-			oldVNode,
-			globalContext,
-			namespace,
-			excessDomChildren,
-			commitQueue,
-			oldDom,
-			isHydrating,
-			refQueue
-		);
-
-		// Adjust DOM nodes
-		newDom = childVNode._dom;
-		if (childVNode.ref && oldVNode.ref != childVNode.ref) {
-			if (oldVNode.ref) {
-				applyRef(oldVNode.ref, NULL, childVNode);
-			}
-			refQueue.push(
-				childVNode.ref,
-				childVNode._component || newDom,
-				childVNode
+		// Skip diffing if the nodes are identical (same object reference)
+		// This is a performance optimization for cases where a parent re-renders
+		// but children don't actually change
+		if (childVNode === oldVNode && childVNode._dom) {
+			newDom = childVNode._dom;
+		} else {
+			// Morph the old element into the new one, but don't append it to the dom yet
+			let result = diff(
+				parentDom,
+				childVNode,
+				oldVNode,
+				globalContext,
+				namespace,
+				excessDomChildren,
+				commitQueue,
+				oldDom,
+				isHydrating,
+				refQueue
 			);
+
+			// Handle refs
+			newDom = childVNode._dom;
+			if (childVNode.ref && oldVNode.ref != childVNode.ref) {
+				if (oldVNode.ref) {
+					applyRef(oldVNode.ref, NULL, childVNode);
+				}
+				refQueue.push(
+					childVNode.ref,
+					childVNode._component || newDom,
+					childVNode
+				);
+			}
+
+			// Handle function component result
+			if (typeof childVNode.type == 'function' && result !== UNDEFINED) {
+				oldDom = result;
+			}
 		}
 
+		// Track the first DOM node for the parent
 		if (firstChildDom == NULL && newDom != NULL) {
 			firstChildDom = newDom;
 		}
 
+		// Determine if we need to insert this node
 		if (
 			childVNode._flags & INSERT_VNODE ||
 			oldVNode._children === childVNode._children
 		) {
 			oldDom = insert(childVNode, oldDom, parentDom);
-		} else if (typeof childVNode.type == 'function' && result !== UNDEFINED) {
-			oldDom = result;
 		} else if (newDom) {
 			oldDom = newDom.nextSibling;
 		}
@@ -167,8 +195,13 @@ function constructNewChildrenArray(
 		remainingOldChildren = oldChildrenLength;
 
 	let skew = 0;
-
+	
+	// Fast path for common case: no children changed
+	let hasIdenticalChildren = newChildrenLength === oldChildrenLength;
+	
+	// Pre-allocate the new children array
 	newParentVNode._children = new Array(newChildrenLength);
+	
 	for (i = 0; i < newChildrenLength; i++) {
 		// @ts-expect-error We are reusing the childVNode variable to hold both the
 		// pre and post normalized childVNode
@@ -180,6 +213,7 @@ function constructNewChildrenArray(
 			typeof childVNode == 'function'
 		) {
 			newParentVNode._children[i] = NULL;
+			hasIdenticalChildren = false;
 			continue;
 		}
 		// If this newVNode is being reused (e.g. <div>{reuse}{reuse}</div>) in the same diff,
@@ -199,6 +233,8 @@ function constructNewChildrenArray(
 				NULL,
 				NULL
 			);
+			// Text nodes can't be identical to previous render
+			hasIdenticalChildren = false;
 		} else if (isArray(childVNode)) {
 			childVNode = newParentVNode._children[i] = createVNode(
 				Fragment,
@@ -207,6 +243,7 @@ function constructNewChildrenArray(
 				NULL,
 				NULL
 			);
+			hasIdenticalChildren = false;
 		} else if (childVNode.constructor === UNDEFINED && childVNode._depth > 0) {
 			// VNode is already in use, clone it. This can happen in the following
 			// scenario:
@@ -219,13 +256,35 @@ function constructNewChildrenArray(
 				childVNode.ref ? childVNode.ref : NULL,
 				childVNode._original
 			);
+			hasIdenticalChildren = false;
 		} else {
 			childVNode = newParentVNode._children[i] = childVNode;
+			
+			// Check if this child is identical to the one at the same position in oldChildren
+			if (hasIdenticalChildren && i < oldChildrenLength) {
+				const oldChild = oldChildren[i];
+				if (!oldChild || 
+					childVNode.key !== oldChild.key || 
+					childVNode.type !== oldChild.type) {
+					hasIdenticalChildren = false;
+				}
+			}
 		}
 
 		const skewedIndex = i + skew;
 		childVNode._parent = newParentVNode;
 		childVNode._depth = newParentVNode._depth + 1;
+
+		// Fast path: if we've determined all children are identical, we can skip the matching process
+		if (hasIdenticalChildren && i < oldChildrenLength) {
+			childVNode._index = i;
+			oldVNode = oldChildren[i];
+			if (oldVNode) {
+				oldVNode._flags |= MATCHED;
+				remainingOldChildren--;
+			}
+			continue;
+		}
 
 		// Temporarily store the matchingIndex on the _index property so we can pull
 		// out the oldVNode in diffChildren. We'll override this to the VNode's
@@ -279,36 +338,24 @@ function constructNewChildrenArray(
 				childVNode._flags |= INSERT_VNODE;
 			}
 		} else if (matchingIndex != skewedIndex) {
-			// When we move elements around i.e. [0, 1, 2] --> [1, 0, 2]
-			// --> we diff 1, we find it at position 1 while our skewed index is 0 and our skew is 0
-			//     we set the skew to 1 as we found an offset.
-			// --> we diff 0, we find it at position 0 while our skewed index is at 2 and our skew is 1
-			//     this makes us increase the skew again.
-			// --> we diff 2, we find it at position 2 while our skewed index is at 4 and our skew is 2
-			//
-			// this becomes an optimization question where currently we see a 1 element offset as an insertion
-			// or deletion i.e. we optimize for [0, 1, 2] --> [9, 0, 1, 2]
-			// while a more than 1 offset we see as a swap.
-			// We could probably build heuristics for having an optimized course of action here as well, but
-			// might go at the cost of some bytes.
-			//
-			// If we wanted to optimize for i.e. only swaps we'd just do the last two code-branches and have
-			// only the first item be a re-scouting and all the others fall in their skewed counter-part.
-			// We could also further optimize for swaps
+			// Optimize for common patterns:
+			// 1. Small shifts (by 1 position)
 			if (matchingIndex == skewedIndex - 1) {
 				skew--;
 			} else if (matchingIndex == skewedIndex + 1) {
 				skew++;
-			} else {
+			} 
+			// 2. Larger shifts
+			else {
+				// Calculate optimal skew adjustment based on the direction of movement
 				if (matchingIndex > skewedIndex) {
 					skew--;
 				} else {
 					skew++;
 				}
 
-				// Move this VNode's DOM if the original index (matchingIndex) doesn't
-				// match the new skew index (i + new skew)
-				// In the former two branches we know that it matches after skewing
+				// Only mark for insertion if we actually need to move the DOM node
+				// This avoids unnecessary DOM operations
 				childVNode._flags |= INSERT_VNODE;
 			}
 		}
@@ -345,7 +392,16 @@ function insert(parentVNode, oldDom, parentDom) {
 
 	if (typeof parentVNode.type == 'function') {
 		let children = parentVNode._children;
-		for (let i = 0; children && i < children.length; i++) {
+		if (!children) return oldDom;
+		
+		// Fast path: if there's only one child, avoid the loop
+		if (children.length === 1 && children[0]) {
+			children[0]._parent = parentVNode;
+			return insert(children[0], oldDom, parentDom);
+		}
+		
+		// Process multiple children
+		for (let i = 0; i < children.length; i++) {
 			if (children[i]) {
 				// If we enter this code path on sCU bailout, where we copy
 				// oldVNode._children to newVNode._children, we need to update the old
@@ -358,13 +414,24 @@ function insert(parentVNode, oldDom, parentDom) {
 
 		return oldDom;
 	} else if (parentVNode._dom != oldDom) {
-		if (oldDom && parentVNode.type && !parentDom.contains(oldDom)) {
-			oldDom = getDomSibling(parentVNode);
+		// Skip DOM insertion if the node is already in the right place
+		if (oldDom && parentVNode._dom && oldDom === parentVNode._dom.nextSibling) {
+			oldDom = parentVNode._dom;
+		} else {
+			// Check if we need to do an actual DOM insertion
+			if (oldDom && parentVNode.type && !parentDom.contains(oldDom)) {
+				oldDom = getDomSibling(parentVNode);
+			}
+			
+			// Only perform the insertion if the DOM node exists
+			if (parentVNode._dom) {
+				parentDom.insertBefore(parentVNode._dom, oldDom || NULL);
+				oldDom = parentVNode._dom;
+			}
 		}
-		parentDom.insertBefore(parentVNode._dom, oldDom || NULL);
-		oldDom = parentVNode._dom;
 	}
 
+	// Skip comment nodes when looking for the next sibling
 	do {
 		oldDom = oldDom && oldDom.nextSibling;
 	} while (oldDom != NULL && oldDom.nodeType == 8);
@@ -408,58 +475,106 @@ function findMatchingIndex(
 	const type = childVNode.type;
 	let oldVNode = oldChildren[skewedIndex];
 
+	// Fast path: direct match at the expected index
+	if (
+		oldVNode &&
+		key == oldVNode.key &&
+		type === oldVNode.type &&
+		(oldVNode._flags & MATCHED) == 0
+	) {
+		return skewedIndex;
+	}
+
+	// Fast path: null child with no key
+	if (oldVNode === NULL && childVNode.key == null) {
+		return skewedIndex;
+	}
+
 	// We only need to perform a search if there are more children
 	// (remainingOldChildren) to search. However, if the oldVNode we just looked
 	// at skewedIndex was not already used in this diff, then there must be at
 	// least 1 other (so greater than 1) remainingOldChildren to attempt to match
-	// against. So the following condition checks that ensuring
-	// remainingOldChildren > 1 if the oldVNode is not already used/matched. Else
-	// if the oldVNode was null or matched, then there could needs to be at least
-	// 1 (aka `remainingOldChildren > 0`) children to find and compare against.
-	//
-	// If there is an unkeyed functional VNode, that isn't a built-in like our Fragment,
-	// we should not search as we risk re-using state of an unrelated VNode. (reverted for now)
+	// against.
 	let shouldSearch =
-		// (typeof type != 'function' || type === Fragment || key) &&
 		remainingOldChildren >
 		(oldVNode != NULL && (oldVNode._flags & MATCHED) == 0 ? 1 : 0);
 
-	if (
-		(oldVNode === NULL && childVNode.key == null) ||
-		(oldVNode &&
-			key == oldVNode.key &&
-			type === oldVNode.type &&
-			(oldVNode._flags & MATCHED) == 0)
-	) {
-		return skewedIndex;
-	} else if (shouldSearch) {
-		let x = skewedIndex - 1;
-		let y = skewedIndex + 1;
-		while (x >= 0 || y < oldChildren.length) {
-			if (x >= 0) {
-				oldVNode = oldChildren[x];
-				if (
-					oldVNode &&
-					(oldVNode._flags & MATCHED) == 0 &&
-					key == oldVNode.key &&
-					type === oldVNode.type
-				) {
-					return x;
+	if (shouldSearch) {
+		// Optimize for keyed elements by checking keys first
+		if (key != null) {
+			// First check if we have a direct key match at the expected index
+			// (already handled in the fast path above)
+			
+			// Search outward from the expected position
+			let x = skewedIndex - 1;
+			let y = skewedIndex + 1;
+			
+			// Prioritize nearby matches to optimize for small shifts
+			while (x >= 0 || y < oldChildren.length) {
+				if (x >= 0) {
+					oldVNode = oldChildren[x];
+					if (
+						oldVNode &&
+						(oldVNode._flags & MATCHED) == 0 &&
+						key == oldVNode.key &&
+						type === oldVNode.type
+					) {
+						return x;
+					}
+					x--;
 				}
-				x--;
-			}
 
-			if (y < oldChildren.length) {
-				oldVNode = oldChildren[y];
-				if (
-					oldVNode &&
-					(oldVNode._flags & MATCHED) == 0 &&
-					key == oldVNode.key &&
-					type === oldVNode.type
-				) {
-					return y;
+				if (y < oldChildren.length) {
+					oldVNode = oldChildren[y];
+					if (
+						oldVNode &&
+						(oldVNode._flags & MATCHED) == 0 &&
+						key == oldVNode.key &&
+						type === oldVNode.type
+					) {
+						return y;
+					}
+					y++;
 				}
-				y++;
+			}
+		} else {
+			// For unkeyed elements, we need to be more careful to avoid
+			// unintended state reuse. Only search nearby positions.
+			let x = skewedIndex - 1;
+			let y = skewedIndex + 1;
+			
+			// Limit search radius for unkeyed elements to avoid incorrect matches
+			const searchRadius = 3;
+			let searchCount = 0;
+			
+			while ((x >= 0 || y < oldChildren.length) && searchCount < searchRadius) {
+				searchCount++;
+				
+				if (x >= 0) {
+					oldVNode = oldChildren[x];
+					if (
+						oldVNode &&
+						(oldVNode._flags & MATCHED) == 0 &&
+						oldVNode.key == null &&
+						type === oldVNode.type
+					) {
+						return x;
+					}
+					x--;
+				}
+
+				if (y < oldChildren.length) {
+					oldVNode = oldChildren[y];
+					if (
+						oldVNode &&
+						(oldVNode._flags & MATCHED) == 0 &&
+						oldVNode.key == null &&
+						type === oldVNode.type
+					) {
+						return y;
+					}
+					y++;
+				}
 			}
 		}
 	}

@@ -1,0 +1,37 @@
+# Plan for Optimizing Preact's Signal Behavior
+
+## Problem Analysis
+Preact's current diffing algorithm can cause unnecessary re-renders when dealing with signals and state updates. The main issues are:
+
+1. Inefficient matching of children during reconciliation
+2. Unnecessary DOM operations when component state changes
+3. Edge cases in the diffing algorithm that cause unintended reactivity
+
+## Proposed Solutions
+
+### 1. Improve Child Reconciliation Algorithm
+- Enhance the `findMatchingIndex` function to be more efficient when matching children
+- Optimize the skew calculation to better handle component reordering
+- Add memoization for frequently accessed patterns
+
+### 2. Optimize VNode Diffing
+- Implement a more efficient way to track which nodes have changed
+- Reduce unnecessary DOM operations by better detecting when a node hasn't actually changed
+- Improve handling of functional components to prevent unnecessary re-renders
+
+### 3. Enhance Signal Propagation
+- Add a mechanism to track signal dependencies more precisely
+- Prevent unnecessary re-renders when a signal changes but doesn't affect the rendered output
+- Implement a more efficient way to batch updates
+
+## Implementation Steps
+1. Modify the `findMatchingIndex` function to improve child matching efficiency
+2. Enhance the `constructNewChildrenArray` function to better handle reordering
+3. Optimize the `insert` function to reduce DOM operations
+4. Add tests to verify the improvements and ensure no regressions
+
+## Expected Outcomes
+- Reduced number of unnecessary re-renders
+- Improved performance for applications using signals
+- Better developer experience with more predictable reactivity
+- Maintained backward compatibility with existing Preact applications
