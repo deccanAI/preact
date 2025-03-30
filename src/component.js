@@ -3,6 +3,12 @@ import { diff, commitRoot } from './diff/index';
 import options from './options';
 import { Fragment } from './create-element';
 import { MODE_HYDRATE, NULL } from './constants';
+import { createSyntheticEvent, releaseSyntheticEvent } from './event-utils';
+import {
+	performUnmount,
+	registerCleanup,
+	isComponentUnmounting
+} from './lifecycle-utils';
 
 /**
  * Base Component class. Provides `setState()` and `forceUpdate()`, which
@@ -126,9 +132,26 @@ function renderComponent(component) {
 		commitQueue = [],
 		refQueue = [];
 
+	// Handle unmounting if the component is being removed
+	if (!component._parentDom && oldVNode) {
+		performUnmount(component);
+		return;
+	}
+
 	if (component._parentDom) {
 		const newVNode = assign({}, oldVNode);
 		newVNode._original = oldVNode._original + 1;
+
+		// Register cleanup function for the component
+		if (component.componentWillUnmount && !component._cleanupRegistered) {
+			registerCleanup(component, () => {
+				if (!isComponentUnmounting()) {
+					component.componentWillUnmount();
+				}
+			});
+			component._cleanupRegistered = true;
+		}
+
 		if (options.vnode) options.vnode(newVNode);
 
 		diff(
