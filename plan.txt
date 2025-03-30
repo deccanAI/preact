@@ -1,0 +1,28 @@
+Preact Signal Optimization Plan
+
+1. Performance Improvements
+- Implement batch updates for multiple signal changes
+- Add memoization for computed signals to prevent unnecessary recalculations
+- Optimize dependency tracking by using WeakMap/WeakSet
+
+2. Re-render Optimization
+- Implement shallow comparison for object/array signals
+- Add granular component updates based on used signal paths
+- Introduce signal subscription pruning for unmounted components
+
+3. Edge Case Handling
+- Add safeguards against circular dependencies
+- Implement proper cleanup for signal subscriptions
+- Handle async signal updates more efficiently
+
+Implementation Steps:
+1. Create a new SignalBatch class for batching updates
+2. Enhance signal tracking with WeakMap for better memory management
+3. Implement memoization system for computed values
+4. Add shallow comparison logic for object/array signals
+5. Implement subscription cleanup and circular dependency detection
+
+Key Files to Modify:
+- signals.js: Core signal implementation
+- render.js: Component rendering logic
+- diff.js: Virtual DOM diffing optimizations
