@@ -1,0 +1,32 @@
+# Preact Hydration Optimization Plan
+
+## Problem Statement
+Preact's hydration process can sometimes lead to inconsistencies when reconciling server-rendered content with client-side rendering. This can cause performance issues, incorrect DOM updates, and unexpected behaviors in edge cases.
+
+## Approach
+1. Enhance the JSX type definitions to support hydration-specific attributes
+2. Add hydration-specific flags and properties to better track hydration state
+3. Improve hydration mismatch detection and recovery
+4. Add support for signals during hydration
+
+## Implementation Details
+
+### 1. Enhance JSX Type Definitions
+- Add hydration-specific attributes to the JSX namespace
+- Support a `hydrate` attribute to explicitly mark hydration targets
+- Add types for hydration mismatch handling
+
+### 2. Improve Hydration Logic
+- Add support for partial hydration where only specific components are hydrated
+- Implement better error recovery for hydration mismatches
+- Add support for signals during hydration to ensure consistent state
+
+### 3. Testing
+- Ensure existing tests pass with the new hydration logic
+- Add specific tests for hydration edge cases
+
+## Expected Benefits
+- More reliable hydration process
+- Better performance by avoiding unnecessary DOM operations
+- Improved developer experience with clearer error messages
+- Better handling of edge cases during hydration

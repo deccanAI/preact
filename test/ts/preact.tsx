@@ -367,6 +367,13 @@ const ReturnNull: FunctionalComponent = () => null;
 h('option', { x: 'foo' });
 createElement('option', { value: 'foo' });
 
+// Should accept hydration attributes
+h('div', { hydrate: true });
+h('div', { hydrate: 'skip' });
+h('div', { hydrate: 'my-component' });
+h('div', { hydrationMismatch: 'warn' });
+createElement('div', { hydrate: true, hydrationMismatch: 'preserve' });
+
 // Refs should work on elements
 const ref = createRef<HTMLDivElement>();
 createElement('div', { ref: ref }, 'hi');
@@ -403,6 +410,14 @@ const onToggle = (e: h.JSX.TargetedToggleEvent<HTMLDetailsElement>) => {};
 createElement('dialog', { onToggle: onToggle });
 h('dialog', { onToggle: onToggle });
 
+// Should accept hydration event handlers
+const onHydrated = (el: HTMLDivElement) => console.log('Hydrated:', el);
+const onHydrationMismatch = (el: HTMLDivElement, expected: string, actual: string) => 
+  console.log('Hydration mismatch:', el, expected, actual);
+<div onHydrated={onHydrated} onHydrationMismatch={onHydrationMismatch} />;
+createElement('div', { onHydrated, onHydrationMismatch });
+h('div', { onHydrated, onHydrationMismatch });
+
 // Should default to correct event target element for the attribute interface
 h<JSX.InputHTMLAttributes>('input', { onClick: e => e.currentTarget.capture });
 createElement<JSX.InputHTMLAttributes>('input', {
@@ -420,6 +435,14 @@ function Checkbox({ onChange }: JSX.HTMLAttributes<HTMLInputElement>) {
 
 	return <input onChange={handleChange} />;
 }
+
+// Test hydration options
+const hydrationOptions: JSX.HydrationOptions = {
+	recoverFromMismatches: true,
+	warnOnMismatches: true,
+	preserveServerContent: false,
+	enableSignals: true
+};
 
 // `AllHTMLAttributes` should support all interfaces used within `JSX.IntrinsicElements`
 const allHTMLAttributes: JSX.AllHTMLAttributes<HTMLMarqueeElement> = {
@@ -441,5 +464,13 @@ const allHTMLAttributes: JSX.AllHTMLAttributes<HTMLMarqueeElement> = {
 	onClick: (e: JSX.TargetedEvent<HTMLMarqueeElement>) => {},
 
 	// AriaAttributes
-	'aria-colcount': 1
+	'aria-colcount': 1,
+	
+	// Hydration attributes
+	'data-hydrate': 'root',
+	'data-ssr': 'true',
+	hydrate: true,
+	hydrationMismatch: 'warn',
+	onHydrated: (el) => console.log('Hydrated', el),
+	onHydrationMismatch: (el, expected, actual) => console.log('Mismatch', el, expected, actual)
 };
