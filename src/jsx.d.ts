@@ -68,6 +68,22 @@ export namespace JSXInternal {
 
 	export interface IntrinsicAttributes {
 		key?: any;
+		/**
+		 * Marks a component or element for hydration
+		 * When true, Preact will attempt to hydrate this component/element
+		 * When "skip", Preact will skip hydration for this component/element
+		 * When a string, Preact will use it as a hydration key for selective hydration
+		 */
+		hydrate?: boolean | "skip" | string;
+		
+		/**
+		 * Controls how hydration mismatches are handled
+		 * When "throw", Preact will throw an error on hydration mismatch (development only)
+		 * When "warn", Preact will log a warning on hydration mismatch
+		 * When "silent", Preact will silently fix hydration mismatches
+		 * When "preserve", Preact will attempt to preserve the server-rendered content
+		 */
+		hydrationMismatch?: "throw" | "warn" | "silent" | "preserve";
 	}
 
 	export type ElementType<P = any> =
@@ -114,6 +130,33 @@ export namespace JSXInternal {
 	export type Signalish<T> = T | SignalLike<T>;
 
 	export type UnpackSignal<T> = T extends SignalLike<infer V> ? V : T;
+	
+	/**
+	 * Options for hydration
+	 */
+	export interface HydrationOptions {
+		/**
+		 * When true, Preact will attempt to recover from hydration mismatches
+		 * by recreating the mismatched nodes
+		 */
+		recoverFromMismatches?: boolean;
+		
+		/**
+		 * When true, Preact will log warnings about hydration mismatches
+		 */
+		warnOnMismatches?: boolean;
+		
+		/**
+		 * When true, Preact will preserve server-rendered content even when
+		 * it doesn't match the client-rendered content
+		 */
+		preserveServerContent?: boolean;
+		
+		/**
+		 * When true, Preact will support signals during hydration
+		 */
+		enableSignals?: boolean;
+	}
 
 	export interface SVGAttributes<Target extends EventTarget = SVGElement>
 		extends HTMLAttributes<Target> {
@@ -624,6 +667,16 @@ export namespace JSXInternal {
 
 	export interface DOMAttributes<Target extends EventTarget>
 		extends PreactDOMAttributes {
+		/**
+		 * Called when hydration is complete for this component
+		 */
+		onHydrated?: (element: Target) => void;
+		
+		/**
+		 * Called when a hydration mismatch occurs
+		 */
+		onHydrationMismatch?: (element: Target, expected: string, actual: string) => void;
+		
 		// Image Events
 		onLoad?: GenericEventHandler<Target> | undefined;
 		onLoadCapture?: GenericEventHandler<Target> | undefined;
@@ -1299,6 +1352,18 @@ export namespace JSXInternal {
 		extends ClassAttributes<RefType>,
 			DOMAttributes<RefType>,
 			AriaAttributes {
+		/**
+		 * Marks an element as a hydration root or target
+		 * Used to optimize the hydration process
+		 */
+		"data-hydrate"?: string;
+		
+		/**
+		 * Indicates that this element was server-rendered
+		 * Used internally by Preact during hydration
+		 */
+		"data-ssr"?: string;
+		
 		// Standard HTML Attributes
 		accesskey?: Signalish<string | undefined>;
 		accessKey?: Signalish<string | undefined>;
