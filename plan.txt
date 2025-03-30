@@ -1,0 +1,51 @@
+Plan to Improve Preact's Hydration Behavior
+
+1. Analysis of Current Implementation
+- Review hydration code in src/diff/index.js and src/render.js
+- Identify potential areas where hydration mismatches occur
+- Focus on edge cases that may cause layout shifts
+
+2. Key Areas to Address
+a) Component Reconciliation
+   - Improve matching of server-rendered and client nodes
+   - Handle attribute differences more gracefully
+   - Better handling of text content mismatches
+
+b) Layout Shift Prevention
+   - Preserve server-rendered DOM structure where possible
+   - Minimize unnecessary node replacements
+   - Handle style/dimension differences carefully
+
+c) Edge Cases
+   - Mixed static/dynamic content
+   - Nested components with different state
+   - Async components and suspense boundaries
+   - Components with side effects during hydration
+
+3. Implementation Steps
+3.1. Enhance Node Matching
+   - Add more robust node type checking
+   - Improve attribute comparison logic
+   - Better text content normalization
+
+3.2. Optimize Reconciliation
+   - Preserve existing DOM nodes when possible
+   - Add warnings for hydration mismatches in dev mode
+   - Implement graceful recovery for minor mismatches
+
+3.3. Handle Edge Cases
+   - Add special handling for dynamic content
+   - Improve async component hydration
+   - Better error recovery mechanisms
+
+4. Testing Strategy
+- Create reproduction cases for common hydration issues
+- Test with various component structures
+- Verify layout stability
+- Measure performance impact
+
+5. Success Metrics
+- Reduced number of hydration mismatches
+- Minimal layout shifts during hydration
+- Maintained or improved performance
+- Better developer experience with helpful warnings

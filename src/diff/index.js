@@ -15,6 +15,7 @@ import { diffChildren } from './children';
 import { setProperty } from './props';
 import { assign, isArray, removeNode, slice } from '../util';
 import options from '../options';
+import { preserveServerNode } from './hydration';
 
 /**
  * @typedef {import('../internal').ComponentChildren} ComponentChildren
@@ -457,20 +458,58 @@ function diffElementNodes(
 		);
 
 		// we are creating a new node, so we can assume this is a new subtree (in
-		// case we are hydrating), this deopts the hydrate
+		// case we are hydrating), attempt to preserve the server node if possible
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
-			isHydrating = false;
+			// Try to find a matching node in excessDomChildren
+			let foundMatch = false;
+			if (excessDomChildren) {
+				for (let i = 0; i < excessDomChildren.length; i++) {
+					const excess = excessDomChildren[i];
+					if (
+						excess &&
+						preserveServerNode(excess, newVNode, EMPTY_OBJ, newProps, namespace)
+					) {
+						dom = excess;
+						excessDomChildren[i] = NULL;
+						foundMatch = true;
+						break;
+					}
+				}
+			}
+
+			if (!foundMatch) {
+				if (options._hydrationMismatch) {
+					options._hydrationMismatch(newVNode, excessDomChildren);
+				}
+				isHydrating = false;
+			}
 		}
-		// we created a new parent, so none of the previously attached children can be reused:
-		excessDomChildren = NULL;
+
+		// If we couldn't preserve a server node, create a new one
+		if (!dom) {
+			dom = document.createElementNS(
+				namespace,
+				nodeType,
+				newProps.is && newProps
+			);
+			// we created a new parent, so none of the previously attached children can be reused:
+			excessDomChildren = NULL;
+		}
 	}
 
 	if (nodeType === NULL) {
-		// During hydration, we still have to split merged text from SSR'd HTML.
-		if (oldProps !== newProps && (!isHydrating || dom.data !== newProps)) {
-			dom.data = newProps;
+		// During hydration, handle text nodes carefully to preserve server content
+		if (oldProps !== newProps) {
+			if (isHydrating) {
+				// During hydration, normalize whitespace and only update if content is different
+				const normalizedOld = dom.data.trim().replace(/\s+/g, ' ');
+				const normalizedNew = String(newProps).trim().replace(/\s+/g, ' ');
+				if (normalizedOld !== normalizedNew) {
+					dom.data = newProps;
+				}
+			} else {
+				dom.data = newProps;
+			}
 		}
 	} else {
 		// If excessDomChildren was not null, repopulate it with the current element's children:
@@ -501,7 +540,7 @@ function diffElementNodes(
 				) {
 					continue;
 				}
-				setProperty(dom, i, NULL, value, namespace);
+				setProperty(dom, i, NULL, value, namespace, isHydrating);
 			}
 		}
 
@@ -521,7 +560,7 @@ function diffElementNodes(
 				(!isHydrating || typeof value == 'function') &&
 				oldProps[i] !== value
 			) {
-				setProperty(dom, i, value, oldProps[i], namespace);
+				setProperty(dom, i, value, oldProps[i], namespace, isHydrating);
 			}
 		}
 

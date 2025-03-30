@@ -36,11 +36,26 @@ let eventClock = 0;
  * @param {*} oldValue The old value the property had
  * @param {string} namespace Whether or not this DOM node is an SVG node or not
  */
-export function setProperty(dom, name, value, oldValue, namespace) {
+export function setProperty(
+	dom,
+	name,
+	value,
+	oldValue,
+	namespace,
+	isHydrating
+) {
 	let useCapture;
 
 	o: if (name == 'style') {
 		if (typeof value == 'string') {
+			if (isHydrating) {
+				// During hydration, only update style if it's completely different
+				const oldNormalized = oldValue?.trim().replace(/\s+/g, ' ');
+				const newNormalized = value.trim().replace(/\s+/g, ' ');
+				if (oldNormalized === newNormalized) {
+					return;
+				}
+			}
 			dom.style.cssText = value;
 		} else {
 			if (typeof oldValue == 'string') {
@@ -137,8 +152,30 @@ export function setProperty(dom, name, value, oldValue, namespace) {
 		if (typeof value == 'function') {
 			// never serialize functions as attribute values
 		} else if (value != NULL && (value !== false || name[4] == '-')) {
+			if (isHydrating) {
+				// During hydration, only update attributes if they're significantly different
+				const oldAttr = dom.getAttribute(name);
+				const newAttr = name == 'popover' && value == true ? '' : value;
+				if (oldAttr !== null) {
+					const oldNormalized = oldAttr.trim();
+					const newNormalized = String(newAttr).trim();
+					if (oldNormalized === newNormalized) {
+						return;
+					}
+				}
+			}
 			dom.setAttribute(name, name == 'popover' && value == true ? '' : value);
 		} else {
+			if (isHydrating && dom.hasAttribute(name)) {
+				// During hydration, be more conservative about removing attributes
+				if (
+					name[4] == '-' ||
+					name.startsWith('data-') ||
+					name.startsWith('aria-')
+				) {
+					return;
+				}
+			}
 			dom.removeAttribute(name);
 		}
 	}
