@@ -1,0 +1,29 @@
+Preact Hydration Performance Enhancement Plan
+
+1. Key Areas for Optimization:
+   - Improve diffing algorithm efficiency during hydration
+   - Implement early bailout for matching nodes
+   - Add mismatch detection and recovery
+   - Optimize attribute comparison
+
+2. Implementation Strategy:
+   a) Enhance hydration logic in core/diff.js:
+      - Add fast-path for identical nodes
+      - Implement selective attribute diffing
+      - Add node reuse optimization
+   
+   b) Improve mismatch handling:
+      - Add recovery mechanism for minor mismatches
+      - Implement warning system for development
+      - Preserve DOM state where possible
+
+3. Expected Improvements:
+   - Reduced unnecessary DOM operations
+   - Faster hydration for matching components
+   - Better handling of edge cases
+   - Minimal layout shifts during hydration
+
+4. Testing Approach:
+   - Benchmark hydration performance
+   - Test with various component structures
+   - Verify edge case handling
