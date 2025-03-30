@@ -167,7 +167,39 @@ function createEventProxy(useCapture) {
 			} else if (e._dispatched < eventHandler._attached) {
 				return;
 			}
-			return eventHandler(options.event ? options.event(e) : e);
+
+			// Support for synthetic events and event pooling
+			let syntheticEvent = e;
+			if (e._synthetic) {
+				// Already a synthetic event
+				syntheticEvent = e;
+			} else if (options.createSyntheticEvent) {
+				// Allow custom synthetic event creation
+				syntheticEvent = options.createSyntheticEvent(e);
+			} else if (options.event) {
+				// Use existing event transformer
+				syntheticEvent = options.event(e);
+			}
+
+			// Add persist() method for compatibility
+			if (!syntheticEvent.persist) {
+				syntheticEvent.persist = () => {
+					// No-op for native events
+					if (options.eventPool) {
+						options.eventPool.add(syntheticEvent);
+					}
+				};
+			}
+
+			// Add isPropagationStopped check
+			if (
+				syntheticEvent.isPropagationStopped &&
+				syntheticEvent.isPropagationStopped()
+			) {
+				return;
+			}
+
+			return eventHandler(syntheticEvent);
 		}
 	};
 }

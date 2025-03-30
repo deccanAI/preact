@@ -151,8 +151,11 @@ export function diff(
 					c.componentWillMount();
 				}
 
-				if (isClassComponent && c.componentDidMount != NULL) {
-					c._renderCallbacks.push(c.componentDidMount);
+				if (isClassComponent) {
+					c._mounted = true;
+					if (c.componentDidMount != NULL) {
+						c._renderCallbacks.push(c.componentDidMount);
+					}
 				}
 			} else {
 				if (
@@ -207,10 +210,28 @@ export function diff(
 					c.componentWillUpdate(newProps, c._nextState, componentContext);
 				}
 
-				if (isClassComponent && c.componentDidUpdate != NULL) {
-					c._renderCallbacks.push(() => {
-						c.componentDidUpdate(oldProps, oldState, snapshot);
-					});
+				if (isClassComponent) {
+					// Ensure component is marked as mounted
+					c._mounted = true;
+
+					if (c.componentDidUpdate != NULL) {
+						c._renderCallbacks.push(() => {
+							c.componentDidUpdate(oldProps, oldState, snapshot);
+						});
+					}
+
+					// Run any pending effects
+					if (c._pendingEffects.length) {
+						c._renderCallbacks.push(() => {
+							c._pendingEffects.forEach(effect => {
+								const cleanup = effect();
+								if (typeof cleanup === 'function') {
+									c._cleanupFns.push(cleanup);
+								}
+							});
+							c._pendingEffects = [];
+						});
+					}
 				}
 			}
 
@@ -642,6 +663,45 @@ export function unmount(vnode, parentVNode, skipRemove) {
 	}
 
 	if ((r = vnode._component) != NULL) {
+		// Run cleanup functions before componentWillUnmount
+		if (r._cleanupFns && r._cleanupFns.length) {
+			try {
+				r._cleanupFns.forEach(cleanup => {
+					if (typeof cleanup === 'function') {
+						cleanup();
+					}
+				});
+				r._cleanupFns = [];
+			} catch (e) {
+				options._catchError(e, parentVNode);
+			}
+		}
+
+		// Clear any pending effects
+		if (r._pendingEffects) {
+			r._pendingEffects = [];
+		}
+
+		// Clear any timeouts/intervals
+		if (r._timeouts) {
+			r._timeouts.forEach(clearTimeout);
+			r._timeouts = null;
+		}
+		if (r._intervals) {
+			r._intervals.forEach(clearInterval);
+			r._intervals = null;
+		}
+
+		// Remove event listeners
+		if (r._listeners) {
+			Object.keys(r._listeners).forEach(type => {
+				if (r._dom) {
+					r._dom.removeEventListener(type, r._listeners[type]);
+				}
+			});
+			r._listeners = null;
+		}
+
 		if (r.componentWillUnmount) {
 			try {
 				r.componentWillUnmount();
@@ -650,6 +710,8 @@ export function unmount(vnode, parentVNode, skipRemove) {
 			}
 		}
 
+		// Mark component as unmounted
+		r._mounted = false;
 		r.base = r._parentDom = NULL;
 	}
 

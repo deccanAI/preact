@@ -14,6 +14,9 @@ import { MODE_HYDRATE, NULL } from './constants';
 export function BaseComponent(props, context) {
 	this.props = props;
 	this.context = context;
+	this._pendingEffects = [];
+	this._cleanupFns = [];
+	this._mounted = false;
 }
 
 /**
@@ -26,6 +29,14 @@ export function BaseComponent(props, context) {
  * updated
  */
 BaseComponent.prototype.setState = function (update, callback) {
+	// Prevent setState after unmount
+	if (!this._mounted && !this._renderCallbacks) {
+		if (options.development) {
+			console.warn("Warning: Can't call setState on an unmounted component.");
+		}
+		return;
+	}
+
 	// only clone state when copying to nextState the first time.
 	let s;
 	if (this._nextState != NULL && this._nextState !== this.state) {
