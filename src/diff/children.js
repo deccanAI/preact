@@ -392,18 +392,48 @@ export function toChildArray(children, out) {
 }
 
 /**
+ * Improved node matching during hydration
  * @param {VNode} childVNode
  * @param {VNode[]} oldChildren
  * @param {number} skewedIndex
  * @param {number} remainingOldChildren
+ * @param {boolean} isHydrating Whether we are in hydration mode
  * @returns {number}
  */
 function findMatchingIndex(
 	childVNode,
 	oldChildren,
 	skewedIndex,
-	remainingOldChildren
+	remainingOldChildren,
+	isHydrating
 ) {
+	// During hydration, try harder to find matching nodes
+	if (isHydrating) {
+		// First try exact match by key and type
+		for (let i = 0; i < oldChildren.length; i++) {
+			const oldVNode = oldChildren[i];
+			if (
+				oldVNode &&
+				(oldVNode._flags & MATCHED) == 0 &&
+				oldVNode.key === childVNode.key &&
+				oldVNode.type === childVNode.type
+			) {
+				return i;
+			}
+		}
+
+		// Then try matching by type only
+		for (let i = 0; i < oldChildren.length; i++) {
+			const oldVNode = oldChildren[i];
+			if (
+				oldVNode &&
+				(oldVNode._flags & MATCHED) == 0 &&
+				oldVNode.type === childVNode.type
+			) {
+				return i;
+			}
+		}
+	}
 	const key = childVNode.key;
 	const type = childVNode.type;
 	let oldVNode = oldChildren[skewedIndex];

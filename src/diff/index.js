@@ -463,8 +463,27 @@ function diffElementNodes(
 				options._hydrationMismatch(newVNode, excessDomChildren);
 			isHydrating = false;
 		}
-		// we created a new parent, so none of the previously attached children can be reused:
-		excessDomChildren = NULL;
+		// During hydration, try to recover and patch the existing DOM node
+		if (isHydrating && options._hydrationMismatch) {
+			// Notify about the mismatch but try to recover
+			options._hydrationMismatch(newVNode, excessDomChildren);
+
+			// Try to find a matching node in excessDomChildren
+			if (excessDomChildren != NULL) {
+				for (i = 0; i < excessDomChildren.length; i++) {
+					value = excessDomChildren[i];
+					if (value && value.nodeType === dom.nodeType) {
+						// Found a potential match, try to patch it
+						dom = value;
+						excessDomChildren[i] = NULL;
+						break;
+					}
+				}
+			}
+		} else {
+			// Not hydrating, clear excess children
+			excessDomChildren = NULL;
+		}
 	}
 
 	if (nodeType === NULL) {

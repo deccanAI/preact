@@ -10,8 +10,12 @@ import { slice } from './util';
  * @param {import('./internal').PreactElement} parentDom The DOM element to render into
  * @param {import('./internal').PreactElement | object} [replaceNode] Optional: Attempt to re-use an
  * existing DOM tree rooted at `replaceNode`
+ * @param {object} [hydrationOptions] Optional: Configuration for hydration behavior
+ * @param {boolean} [hydrationOptions.preserveUnmatchedNodes] Whether to preserve unmatched server-rendered nodes
+ * @param {boolean} [hydrationOptions.enablePartialHydration] Whether to enable partial hydration of static content
+ * @param {boolean} [hydrationOptions.strictHydration] Whether to throw on hydration mismatches
  */
-export function render(vnode, parentDom, replaceNode) {
+export function render(vnode, parentDom, replaceNode, hydrationOptions = {}) {
 	// https://github.com/preactjs/preact/issues/3794
 	if (parentDom == document) {
 		parentDom = document.documentElement;
@@ -73,6 +77,22 @@ export function render(vnode, parentDom, replaceNode) {
  * @param {import('./internal').ComponentChild} vnode The virtual node to render
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
-export function hydrate(vnode, parentDom) {
-	render(vnode, parentDom, hydrate);
+export function hydrate(vnode, parentDom, options = {}) {
+	// Set default hydration options
+	const hydrationOptions = {
+		preserveUnmatchedNodes: true,
+		enablePartialHydration: true,
+		strictHydration: false,
+		...options
+	};
+
+	// Store hydration options in the options object for access during diffing
+	const prevHydrationOptions = options._hydrationOptions;
+	options._hydrationOptions = hydrationOptions;
+
+	// Call render with hydrate function as replaceNode to signal hydration mode
+	render(vnode, parentDom, hydrate, hydrationOptions);
+
+	// Restore previous hydration options
+	options._hydrationOptions = prevHydrationOptions;
 }

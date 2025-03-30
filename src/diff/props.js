@@ -35,8 +35,25 @@ let eventClock = 0;
  * @param {*} value The value to set the property to
  * @param {*} oldValue The old value the property had
  * @param {string} namespace Whether or not this DOM node is an SVG node or not
+ * @param {boolean} isHydrating Whether we are in hydration mode
  */
-export function setProperty(dom, name, value, oldValue, namespace) {
+export function setProperty(
+	dom,
+	name,
+	value,
+	oldValue,
+	namespace,
+	isHydrating
+) {
+	// During hydration, only update critical props and preserve others
+	if (isHydrating) {
+		// Critical props that must be updated during hydration
+		const criticalProps = ['id', 'key', 'role', 'tabIndex'];
+		if (!criticalProps.includes(name) && dom.getAttribute(name) != null) {
+			// Preserve server-rendered value unless it's a critical prop
+			return;
+		}
+	}
 	let useCapture;
 
 	o: if (name == 'style') {
