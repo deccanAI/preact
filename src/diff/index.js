@@ -368,6 +368,92 @@ export function commitRoot(commitQueue, root, refQueue) {
 	});
 }
 
+/**
+ * Attempts to recover from a hydration mismatch by finding a matching node
+ * or creating a new one while preserving as much of the server-rendered DOM as possible
+ * @param {VNode} vnode The virtual node we're trying to hydrate
+ * @param {Array<PreactElement>} excessDomChildren Available DOM nodes
+ * @param {string} namespace Current namespace
+ * @returns {{ recovered: boolean, node: PreactElement|null, perfect: boolean }}
+ */
+function tryRecoverFromHydrationMismatch(vnode, excessDomChildren, namespace) {
+	if (!excessDomChildren || !excessDomChildren.length) {
+		return { recovered: false, node: null, perfect: false };
+	}
+
+	const nodeType = vnode.type;
+	const props = vnode.props || EMPTY_OBJ;
+
+	// Try to find a matching node with the same tag/type
+	for (let i = 0; i < excessDomChildren.length; i++) {
+		const child = excessDomChildren[i];
+		if (!child) continue;
+
+		// For text nodes
+		if (nodeType === null) {
+			if (child.nodeType === 3) {
+				// Text content can be normalized/trimmed
+				const normalizedText = child.data.trim();
+				const vnodeText = String(props).trim();
+
+				if (normalizedText === vnodeText) {
+					return { recovered: true, node: child, perfect: true };
+				}
+				// Partial match - we can still use this node
+				if (normalizedText.length > 0) {
+					child.data = String(props);
+					return { recovered: true, node: child, perfect: false };
+				}
+			}
+			continue;
+		}
+
+		// For element nodes
+		if (child.nodeName.toLowerCase() === nodeType.toLowerCase()) {
+			// Found a matching element
+			excessDomChildren[i] = null; // Mark as used
+
+			// Check if attributes match
+			let perfectMatch = true;
+			for (const name in props) {
+				if (name === 'children') continue;
+
+				const value = props[name];
+				const oldValue = child.getAttribute(name);
+
+				if (value != null && String(value) !== oldValue) {
+					perfectMatch = false;
+					// Update the attribute to match
+					if (value === false) {
+						child.removeAttribute(name);
+					} else {
+						child.setAttribute(name, value);
+					}
+				}
+			}
+
+			// Remove any extra attributes
+			for (let j = 0; j < child.attributes.length; j++) {
+				const attr = child.attributes[j];
+				if (!(attr.name in props)) {
+					perfectMatch = false;
+					child.removeAttribute(attr.name);
+				}
+			}
+
+			return { recovered: true, node: child, perfect: perfectMatch };
+		}
+	}
+
+	// No matching node found, create a new one
+	const dom =
+		nodeType === null
+			? document.createTextNode(props)
+			: document.createElementNS(namespace, nodeType, props.is && props);
+
+	return { recovered: true, node: dom, perfect: false };
+}
+
 function cloneNode(node) {
 	if (typeof node !== 'object' || node == NULL) {
 		return node;
@@ -456,12 +542,34 @@ function diffElementNodes(
 			newProps.is && newProps
 		);
 
-		// we are creating a new node, so we can assume this is a new subtree (in
-		// case we are hydrating), this deopts the hydrate
+		// Handle hydration mismatch more gracefully
 		if (isHydrating) {
-			if (options._hydrationMismatch)
-				options._hydrationMismatch(newVNode, excessDomChildren);
-			isHydrating = false;
+			if (options._hydrationMismatch) {
+				// Try to recover from hydration mismatch
+				const recoveryResult = tryRecoverFromHydrationMismatch(
+					newVNode,
+					excessDomChildren,
+					namespace
+				);
+
+				if (recoveryResult.recovered) {
+					dom = recoveryResult.node;
+					// Keep hydrating if we recovered
+					if (options._hydrationWarning && !recoveryResult.perfect) {
+						options._hydrationWarning(
+							newVNode,
+							'Recovered from hydration mismatch'
+						);
+					}
+				} else {
+					// Only deopt hydration if recovery failed
+					options._hydrationMismatch(newVNode, excessDomChildren);
+					isHydrating = false;
+				}
+			} else {
+				// Without recovery option, fall back to old behavior
+				isHydrating = false;
+			}
 		}
 		// we created a new parent, so none of the previously attached children can be reused:
 		excessDomChildren = NULL;
