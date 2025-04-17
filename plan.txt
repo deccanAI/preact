@@ -1,0 +1,23 @@
+# Plan for implementing ctx.back([alt]) in Preact
+
+After reviewing the provided files, I notice that this task appears to be for the Koa framework (a web server framework), but the files provided are from Preact (a UI library similar to React).
+
+The task description mentions:
+- Implementing a ctx.back([alt]) method for redirecting users based on Referrer/Referer headers
+- Adding deprecation warnings for redirect('back')
+- Ensuring context delegation exposes the new back method
+
+These features are specific to HTTP server frameworks like Koa, not UI libraries like Preact.
+
+The files provided include:
+- Preact context implementation files
+- Preact test files
+- TypeScript definition files for Preact
+
+None of these files contain HTTP redirect functionality or context objects in the Koa sense.
+
+To properly implement this feature, we would need access to Koa framework files, particularly:
+- The context (ctx) implementation
+- The response handling code that includes the redirect method
+
+Without the correct files, I cannot implement the requested changes for the Koa framework.
