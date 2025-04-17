@@ -1,0 +1,36 @@
+# Plan for Adding Leet Speak Conversion to Preact
+
+## Overview
+Implement a bidirectional conversion utility between standard text and Leet Speak in Preact.
+
+## Implementation Steps
+
+1. Create a new utility module for text transformations
+   - Implement leetSpeakEncode function to convert normal text to leet speak
+   - Implement leetSpeakDecode function to convert leet speak back to normal text
+   - Define character mappings (e→3, a→4, t→7, etc.)
+
+2. Add TypeScript type definitions
+   - Add types for the leet speak conversion functions
+   - Export the functions in the main index files
+
+3. Create test cases
+   - Test encoding from normal text to leet speak
+   - Test decoding from leet speak to normal text
+   - Test edge cases (empty strings, special characters, etc.)
+
+## Character Mappings
+Standard leet speak mappings to implement:
+- a ↔ 4
+- e ↔ 3
+- i ↔ 1
+- o ↔ 0
+- t ↔ 7
+- l ↔ 1
+- s ↔ 5
+- g ↔ 6
+- z ↔ 2
+
+## Integration Points
+- Make functions available in the Preact exports
+- Ensure TypeScript definitions are properly exposed
