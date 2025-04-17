@@ -1,5 +1,6 @@
 import { enqueueRender } from './component';
 import { NULL } from './constants';
+import { back } from './back';
 
 export let i = 0;
 
@@ -37,6 +38,9 @@ export function createContext(defaultValue) {
 					if (old) old.call(c);
 				};
 			};
+			
+			// Add back method to context
+			this.back = back;
 		}
 
 		return props.children;

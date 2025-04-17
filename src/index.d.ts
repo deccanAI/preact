@@ -392,6 +392,7 @@ export interface Context<T> extends preact.Provider<T> {
 	Consumer: preact.Consumer<T>;
 	Provider: preact.Provider<T>;
 	displayName?: string;
+	back(alt?: string): void;
 }
 
 export interface PreactContext<T> extends Context<T> {}

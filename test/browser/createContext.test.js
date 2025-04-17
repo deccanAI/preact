@@ -1005,4 +1005,70 @@ describe('createContext', () => {
 		expect(scratch.textContent).to.equal('bar');
 		expect(spy).not.to.be.called;
 	});
+	
+	it('should expose back method on context', () => {
+		const Ctx = createContext('foo');
+		const historyBackSpy = sinon.spy();
+		const locationSpy = sinon.spy();
+		
+		// Mock window.history.back and window.location
+		const originalHistory = global.window.history;
+		const originalLocation = global.window.location;
+		
+		global.window.history = { back: historyBackSpy };
+		global.window.location = { href: '' };
+		Object.defineProperty(global.window.location, 'href', {
+			set: locationSpy
+		});
+		
+		// Create a component that uses the context
+		class App extends Component {
+			static contextType = Ctx;
+			
+			componentDidMount() {
+				// Call back with no arguments
+				this.context.back();
+			}
+			
+			render() {
+				return <div>Test</div>;
+			}
+		}
+		
+		render(<App />, scratch);
+		
+		// Should call history.back when no referrer is present
+		expect(historyBackSpy).to.have.been.calledOnce;
+		
+		// Restore original window objects
+		global.window.history = originalHistory;
+		global.window.location = originalLocation;
+	});
+	
+	it('should warn when using deprecated redirect("back")', () => {
+		const Ctx = createContext('foo');
+		const warnSpy = sinon.spy(console, 'warn');
+		const historyBackSpy = sinon.spy();
+		
+		// Mock window.history.back
+		const originalHistory = global.window.history;
+		global.window.history = { back: historyBackSpy };
+		
+		// Import the redirect function
+		const { redirect } = require('../../src/back');
+		
+		// Call the deprecated method
+		redirect('back');
+		
+		// Should show deprecation warning
+		expect(warnSpy).to.have.been.calledOnce;
+		expect(warnSpy.args[0][0]).to.include('Deprecation warning');
+		
+		// Should call history.back
+		expect(historyBackSpy).to.have.been.calledOnce;
+		
+		// Restore original objects
+		global.window.history = originalHistory;
+		warnSpy.restore();
+	});
 });
