@@ -69,6 +69,7 @@ export namespace JSXInternal {
 
 	export interface IntrinsicAttributes {
 		key?: any;
+		leetSpeak?: boolean;
 	}
 
 	export type ElementType<P = any> =
