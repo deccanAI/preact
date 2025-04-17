@@ -7,7 +7,9 @@ import {
 	AnyComponent,
 	h,
 	createRef,
-	JSX
+	JSX,
+	leetSpeakEncode,
+	leetSpeakDecode
 } from '../../';
 
 interface DummyProps {
@@ -395,6 +397,19 @@ h('dialog', { onToggle: onToggle });
 h<JSX.InputHTMLAttributes>('input', { onClick: e => e.currentTarget.capture });
 createElement<JSX.InputHTMLAttributes>('input', { onClick: e => e.currentTarget.capture });
 <input onClick={e => e.currentTarget.capture} />;
+
+// Test leet speak conversion
+const normalText = "Hello Elite";
+const leetText = leetSpeakEncode(normalText);
+const decodedText = leetSpeakDecode(leetText);
+console.log({ normalText, leetText, decodedText });
+
+// Test with JSX
+const LeetComponent = ({ text, isLeet }: { text: string, isLeet?: boolean }) => (
+	<div>{isLeet ? leetSpeakEncode(text) : text}</div>
+);
+const leetUsage = <LeetComponent text="Hello World" isLeet={true} />;
+const leetAttribute = <div leetSpeak>This text will be transformed</div>;
 
 function Checkbox({ onChange }: JSX.HTMLAttributes<HTMLInputElement>) {
 	function handleChange(
