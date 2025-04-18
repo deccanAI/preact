@@ -1,0 +1,27 @@
+Implementation Plan for ctx.back() in Koa
+
+1. Add new ctx.back() method
+- Implement in lib/context.js
+- Method should check Referrer/Referer header
+- Support optional fallback URL parameter
+- Return to fallback or '/' if no referrer found
+
+2. Update redirect() method
+- Add deprecation warning for redirect('back')
+- Maintain backward compatibility
+- Call new ctx.back() internally
+
+3. Expose via delegation
+- Update lib/context.js to delegate the new back() method
+
+4. Testing
+- Add test cases for ctx.back()
+- Test with and without referrer
+- Test with custom fallback URL
+- Test deprecation warning
+
+Implementation approach:
+- Keep changes minimal and focused
+- Ensure backward compatibility
+- Follow Koa's existing code style
+- Use proper TypeScript types if present
