@@ -1,0 +1,40 @@
+Plan for implementing ctx.back([alt]) method in Preact:
+
+1. Analyze Requirements:
+- Need to implement ctx.back([alt]) method similar to Koa framework
+- Method should redirect users to Referrer/Referer header value
+- Should support fallback URL if no referrer is present
+- Need to deprecate existing redirect('back') usage
+- Must ensure context delegation exposes the new back method
+
+2. Implementation Steps:
+a) Locate the current redirect implementation
+b) Add new ctx.back([alt]) method to handle:
+   - Check for Referrer/Referer header
+   - Use provided fallback URL if no referrer exists
+   - Implement actual redirect logic
+
+c) Modify existing redirect('back') to:
+   - Emit deprecation warning
+   - Call new ctx.back() method internally
+   - Suggest migration to ctx.back()
+
+d) Ensure context delegation properly exposes the new method
+
+3. Files to Modify:
+- Need to identify the main context/routing related files
+- Look for existing redirect implementation
+- May need to modify context delegation code
+
+4. Testing Considerations:
+- Test ctx.back() with valid Referrer header
+- Test ctx.back(alt) with missing Referrer header
+- Test deprecation warning for redirect('back')
+- Test context delegation of back method
+
+5. Edge Cases to Handle:
+- Missing Referrer header
+- Invalid/malformed Referrer URLs
+- Multiple Referrer headers
+- Empty string or invalid fallback URL
+- Security considerations for redirects
